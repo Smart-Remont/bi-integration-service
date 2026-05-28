@@ -2,7 +2,7 @@
 
 FastAPI-сервис интеграций для Smart Remont. Проект построен как тонкий API-слой над PostgreSQL: HTTP-запросы проходят через FastAPI-роутеры, сервисы и репозитории, а данные читаются из БД через `asyncpg` и PostgreSQL stored functions.
 
-Этот README также служит инструкцией для ИИ-агентов вроде Cursor: где что лежит, какие паттерны уже приняты и как добавлять новый код без ломки архитектуры.
+Этот README — onboarding для людей. **Для ИИ-агентов и пошаговых паттернов кода см. [AGENTS.md](AGENTS.md)** (в т.ч. big integration vs `/api/v1`).
 
 ## Стек
 
@@ -29,7 +29,7 @@ uv sync
 cp app/.env.example app/.env
 ```
 
-Заполнить переменные:
+Заполнить переменные (см. `app/.env.example`):
 
 ```env
 POSTGRES_PASSWORD=
@@ -40,6 +40,9 @@ POSTGRES_PORT=
 
 DB_POOL_MIN_SIZE=10
 DB_POOL_MAX_SIZE=50
+
+INTEGRATION_HS_BI_USER=hs_bi
+INTEGRATION_HS_BI_PASSWORD=
 ```
 
 Запустить локально из директории `app`, потому что импорты в проекте используют корень `src`:
@@ -84,12 +87,16 @@ HTTP
   -> PostgreSQL stored function через BaseRepository.call_sp()
 ```
 
-Текущий пример feature-модуля: `app/src/features/ddu_contractor/`.
+Примеры feature-модулей:
+
+- `app/src/features/ddu_contractor/` — внутренний API `/api/v1/...`
+- `app/src/features/big_integration/` — legacy-интеграции `/api/big_integration/...` (см. [AGENTS.md](AGENTS.md))
 
 ## Структура проекта
 
 ```text
 .
+├── AGENTS.md
 ├── README.md
 ├── Dockerfile
 ├── docker-compose.yaml
@@ -307,19 +314,15 @@ v1_router.include_router(example_router)
 
 ## Соглашения для ИИ-агентов
 
-Следуйте этим правилам при изменении проекта:
+Полный чеклист и паттерн big integration: **[AGENTS.md](AGENTS.md)**.
 
-- Не вводить ORM без явного запроса. Текущий паттерн - `asyncpg` и stored functions.
-- Не обращаться к БД из `router.py`. Использовать `service.py` и `repo.py`.
-- Не смешивать HTTP-логику с репозиториями.
-- Использовать абсолютные импорты от `src`, как в существующем коде.
-- Запускать локальные команды, связанные с приложением, из директории `app`, если команда импортирует `src`.
-- Наследовать API-схемы от `BaseSchema`, но имена полей оставлять такими, как они приходят из БД.
-- Для новых endpoint-ов сначала смотреть на `app/src/features/ddu_contractor/` и повторять эту структуру.
-- Не запускать data-changing SQL, миграции или скрипты, которые пишут в БД, без явного подтверждения пользователя.
-- Не коммитить `app/.env` и другие секреты.
-- Не добавлять глобальные абстракции, пока есть только один-два конкретных use case.
-- Если добавляете доменные ошибки, добавьте FastAPI handlers, иначе они уйдут как 500.
+Кратко:
+
+- Не вводить ORM; доступ к данным — `call_sp()` и `asyncpg`.
+- Не обращаться к БД из `router.py`.
+- `/api/v1` — Pydantic + `BaseSchema`; `/api/big_integration` — сырой JSON и ответ из refcursor (без обёрток).
+- Не мутировать БД без явного подтверждения пользователя.
+- Не коммитить `app/.env`.
 
 ## Тесты и линтеры
 
@@ -346,5 +349,5 @@ ruff format .
 - Миграций и `pogo`-конфига в репозитории сейчас нет.
 - CORS origins захардкожены в `app/src/config.py` на `localhost:3000` и `127.0.0.1:3000`.
 - Gunicorn по умолчанию слушает `0.0.0.0:8000`.
-- Единственный полноценный пример бизнес-модуля сейчас - `ddu_contractor`; используйте его как шаблон.
+- Шаблоны: `ddu_contractor` (`/api/v1`), `big_integration/request_event_v3` (`/api/big_integration`) — детали в [AGENTS.md](AGENTS.md).
 

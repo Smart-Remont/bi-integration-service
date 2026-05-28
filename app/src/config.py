@@ -1,4 +1,14 @@
+import os
 from typing import List
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+class BigIntegrationAuthConfig:
+    username: str = os.getenv("INTEGRATION_HS_BI_USER", "hs_bi")
+    password: str = os.getenv("INTEGRATION_HS_BI_PASSWORD", "")
 
 
 class CORSConfig:
@@ -12,3 +22,4 @@ class CORSConfig:
 
 
 cors_config = CORSConfig()
+big_integration_auth_config = BigIntegrationAuthConfig()
