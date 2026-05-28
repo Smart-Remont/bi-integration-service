@@ -27,4 +27,10 @@ app.add_middleware(
     allow_headers=cors_config.allow_headers,
 )
 
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 app.include_router(main_router)
