@@ -19,7 +19,7 @@ FastAPI-сервис — тонкий HTTP-слой над PostgreSQL stored fun
 
 ## Big integration (legacy-замена Zend)
 
-Используется для эндпоинтов, которые раньше жили в PHP (`IntegrationController`): Basic Auth, сырой JSON в SP, ответ = строка из refcursor без обёрток.
+Используется для эндпоинтов, которые раньше жили в PHP (`IntegrationController`): Basic Auth, сырой JSON в SP, ответ в legacy envelope `data/response/error`.
 
 ### Структура
 
@@ -29,7 +29,7 @@ features/big_integration/
 ├── db.py                # scalar_from_sp_rows()
 ├── errors.py            # BigIntegrationDatabaseError, текст из PostgreSQL {…}
 ├── http.py              # read_json_object() — парсинг тела
-├── responses.py         # плоский JSON success / {"message"} error
+├── responses.py         # legacy envelope: {"data","response","error"}
 ├── router.py            # агрегатор под-роутеров
 └── <endpoint_name>/
     ├── deps.py
@@ -54,26 +54,42 @@ features/big_integration/
 
 **Запрос:** `Content-Type: application/json`, тело передаётся в SP **без Pydantic-валидации** (все проверки в БД).
 
-**Успех (200):** тело = **первая строка refcursor** как JSON-объект, ключи и `null` — как вернул PostgreSQL:
+**Успех (200):** тело = legacy envelope, где `data` — **первая строка refcursor** как JSON-объект (ключи и `null` как вернул PostgreSQL):
 
 ```json
 {
-  "client_request_id": 2916069,
-  "application_id": null,
-  "order_id": "318796",
-  "deal_id": null
+  "data": {
+    "client_request_id": 2916069,
+    "application_id": null,
+    "order_id": "318796",
+    "deal_id": null
+  },
+  "response": true,
+  "error": { "message": "" }
 }
 ```
 
 **Ошибка (500):**
 
 ```json
-{ "message": "Поле \"client_request_id\" не заполнено [ДДУ]" }
+{
+  "data": null,
+  "response": false,
+  "error": { "message": "Поле \"client_request_id\" не заполнено [ДДУ]" }
+}
 ```
 
 Текст `message` — из `raise exception '{…}'` в SP; фигурные скобки снимаются в `clean_postgres_error_message()`.
 
-Невалидный JSON до БД: `{"message": "Invalid JSON"}`.
+Невалидный JSON до БД:
+
+```json
+{
+  "data": null,
+  "response": false,
+  "error": { "message": "Invalid JSON" }
+}
+```
 
 ### Поток (на примере request-event-v3)
 
@@ -84,7 +100,7 @@ repo    → call_sp("rest.ddu__request_event_v3", json.dumps(body), module_code=
 repo    → call_sp("rest.ddu__request_get", id, cursor=True, module_code="DDU")
 ```
 
-Ответ success — `rows[0]` после `cursor=True`, без Pydantic.
+Ответ success — envelope с `data = rows[0]` после `cursor=True`, без Pydantic.
 
 ### БД: правила `call_sp`
 
@@ -114,7 +130,7 @@ async def my_route(request: Request, _: BigIntegrationBasicAuthDep, service: MyS
 
 ### Чего не делать в big integration
 
-- Не добавлять обёртки `data` / `response` / `error` (это старый Zend `sendResponse`, здесь не используется).
+- Использовать legacy envelope `data` / `response` / `error` для всех big integration эндпоинтов.
 - Не валидировать обязательные поля в Pydantic — только SP.
 - Не использовать `BaseSchema` / camelCase для тел запроса и ответа.
 - Не ходить в БД из `router.py`.
