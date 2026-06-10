@@ -16,9 +16,13 @@ def big_integration_success_response(data: Any) -> JSONResponse:
     )
 
 
-def big_integration_error_response(message: str) -> JSONResponse:
+def big_integration_error_response(
+    message: str,
+    *,
+    status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
+) -> JSONResponse:
     return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        status_code=status_code,
         content={
             "data": None,
             "response": False,
