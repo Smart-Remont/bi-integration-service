@@ -11,7 +11,7 @@ router = APIRouter()
 @router.post("/ddu-resident-agreement-status")
 async def ddu_resident_agreement_status(
     request: Request,
-    #_: BigIntegrationBasicAuthDep,
+    _: BigIntegrationBasicAuthDep,
     service: DduResidentAgreementStatusServiceDep,
 ) -> JSONResponse:
     body = await read_json_object(request)
