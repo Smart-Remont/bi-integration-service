@@ -21,5 +21,10 @@ class CORSConfig:
     allow_headers: List[str] = ["*"]
 
 
+class AppConfig:
+    env: str = os.getenv("APP_ENV", "stage")
+
+
 cors_config = CORSConfig()
 big_integration_auth_config = BigIntegrationAuthConfig()
+app_config = AppConfig()

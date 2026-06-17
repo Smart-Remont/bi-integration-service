@@ -17,7 +17,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await close_db_pool()
 
 
-app = FastAPI(lifespan=lifespan, redirect_slashes=False)
+app = FastAPI(
+    title="integrations-sr",
+    description="HTTP-слой над PostgreSQL stored functions: внутренний API `/api/v1` и legacy big integration.",
+    version="0.1.0",
+    lifespan=lifespan,
+    redirect_slashes=False,
+)
 register_infrastructure_handlers(app)
 app.add_middleware(
     CORSMiddleware,

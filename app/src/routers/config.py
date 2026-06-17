@@ -1,6 +1,7 @@
 class APIV1PrefixConfig:
     prefix: str = "/v1"
     ddu_contractors: str = "/ddu_contractors"
+    installment_ff: str = "/installment/ff"
 
 
 class APIBigIntegrationPrefixConfig:

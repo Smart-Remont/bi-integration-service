@@ -6,8 +6,10 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "asyncpg>=0.31.0",
+    "bcrypt>=5.0.0",
     "fastapi>=0.136.3",
     "gunicorn>=26.0.0",
+    "httpx>=0.28.1",
     "loguru>=0.7.3",
     "pyhumps>=3.8.0",
     "python-dotenv>=1.2.2",
