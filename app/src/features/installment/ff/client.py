@@ -1,6 +1,3 @@
-import socket
-from collections.abc import Iterator
-from contextlib import contextmanager, nullcontext
 from typing import Any
 from urllib.parse import urlencode, urlparse
 
@@ -13,30 +10,6 @@ class FFClientError(Exception):
         super().__init__(detail)
         self.status_code = status_code
         self.detail = detail
-
-
-@contextmanager
-def _resolve_host(hostname: str, ip: str) -> Iterator[None]:
-    """curl --resolve hostname:443:ip — connect to internal IP, keep hostname for TLS/SNI."""
-    original_getaddrinfo = socket.getaddrinfo
-
-    def patched_getaddrinfo(
-        host: str | bytes | None,
-        port: str | int | None,
-        family: int = 0,
-        type: int = 0,
-        proto: int = 0,
-        flags: int = 0,
-    ):
-        if host == hostname:
-            host = ip
-        return original_getaddrinfo(host, port, family, type, proto, flags)
-
-    socket.getaddrinfo = patched_getaddrinfo  # type: ignore[assignment]
-    try:
-        yield
-    finally:
-        socket.getaddrinfo = original_getaddrinfo
 
 
 class FFClient:
@@ -55,6 +28,21 @@ class FFClient:
     @staticmethod
     def _auth_header(access_token: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {access_token}"}
+
+    @staticmethod
+    def _transport_target(
+        base_url: str,
+        resolve_ip: str | None,
+    ) -> tuple[str, dict[str, str], dict[str, Any]]:
+        """curl --resolve host:443:ip — TCP to internal IP, TLS SNI + Host = public hostname."""
+        parsed = urlparse(base_url.rstrip("/"))
+        hostname = parsed.hostname
+        if not resolve_ip or not hostname:
+            return base_url.rstrip("/"), {}, {}
+
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        connect_base = f"{parsed.scheme}://{resolve_ip}:{port}"
+        return connect_base, {"Host": hostname}, {"sni_hostname": hostname}
 
     async def authenticate(
         self,
@@ -144,55 +132,60 @@ class FFClient:
         json: dict[str, Any] | None = None,
         resolve_ip: str | None = None,
     ) -> dict[str, Any]:
-        request_url = f"{base_url.rstrip('/')}{path}"
+        logical_url = f"{base_url.rstrip('/')}{path}"
         if params:
-            request_url = f"{request_url}?{urlencode(params)}"
+            logical_url = f"{logical_url}?{urlencode(params)}"
 
+        connect_base, resolve_headers, extensions = self._transport_target(base_url, resolve_ip)
         outgoing_headers = self._build_headers(headers)
-        hostname = urlparse(base_url.rstrip("/")).hostname
+        outgoing_headers.update(resolve_headers)
+        connect_url = f"{connect_base}{path}"
+        if params:
+            connect_url = f"{connect_url}?{urlencode(params)}"
 
         logger.info(
-            "FF HTTP request | method={method} url={url} resolve_ip={resolve_ip} headers={headers} body={body}",
+            "FF HTTP request | method={method} url={url} connect_url={connect_url} resolve_ip={resolve_ip} "
+            "headers={headers} body={body}",
             method=method,
-            url=request_url,
+            url=logical_url,
+            connect_url=connect_url,
             resolve_ip=resolve_ip,
             headers=self._mask_headers(outgoing_headers),
             body=self._mask_json_body(json),
         )
 
         timeout = httpx.Timeout(timeout=20.0, connect=10.0)
-        resolve_ctx = (
-            _resolve_host(hostname, resolve_ip)
-            if resolve_ip and hostname
-            else nullcontext()
-        )
         try:
-            with resolve_ctx:
-                async with httpx.AsyncClient(base_url=base_url.rstrip("/"), timeout=timeout) as client:
-                    response = await client.request(
-                        method=method,
-                        url=path,
-                        headers=outgoing_headers,
-                        params=params,
-                        json=json,
-                    )
+            async with httpx.AsyncClient(base_url=connect_base, timeout=timeout) as client:
+                response = await client.request(
+                    method=method,
+                    url=path,
+                    headers=outgoing_headers,
+                    params=params,
+                    json=json,
+                    extensions=extensions,
+                )
         except httpx.RequestError as exc:
-            logger.error("FF HTTP transport error | url={url} error={error}", url=request_url, error=exc)
+            logger.error(
+                "FF HTTP transport error | connect_url={url} error={error}",
+                url=connect_url,
+                error=exc,
+            )
             raise FFClientError(
                 status_code=502,
                 detail=f"Freedom Finance request failed: {exc}",
             ) from exc
 
         logger.info(
-            "FF HTTP response | url={url} status={status} body={body}",
-            url=request_url,
+            "FF HTTP response | connect_url={url} status={status} body={body}",
+            url=connect_url,
             status=response.status_code,
             body=self._truncate_response_body(response),
         )
-        return self._parse_response(response)
+        return self._parse_response(response, resolve_ip=resolve_ip)
 
     @staticmethod
-    def _parse_response(response: httpx.Response) -> dict[str, Any]:
+    def _parse_response(response: httpx.Response, *, resolve_ip: str | None = None) -> dict[str, Any]:
         try:
             payload = response.json()
         except ValueError:
@@ -214,10 +207,17 @@ class FFClient:
             detail = f"Freedom Finance request failed with status {response.status_code}."
             raw_body = FFClient._truncate_response_body(response)
             if "cloudflare" in raw_body.lower() or "you have been blocked" in raw_body.lower():
-                detail = (
-                    f"Freedom Finance blocked the request (HTTP {response.status_code}, Cloudflare). "
-                    "Set config.resolve_ip on provider FF (internal bank IP)."
-                )
+                if resolve_ip:
+                    detail = (
+                        f"Freedom Finance blocked the request (HTTP {response.status_code}, Cloudflare) "
+                        f"despite resolve_ip={resolve_ip}. "
+                        "Ensure the container can reach the internal bank IP (host network or extra_hosts)."
+                    )
+                else:
+                    detail = (
+                        f"Freedom Finance blocked the request (HTTP {response.status_code}, Cloudflare). "
+                        "Set config.resolve_ip on provider FF (internal bank IP)."
+                    )
 
         logger.warning(
             "FF HTTP error | status={status} detail={detail} raw_body={body}",
