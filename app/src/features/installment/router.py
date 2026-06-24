@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Path, Request, status
 from src.routers import api_prefix_config
 
+from .auth import InstallmentBasicAuthDep
 from .deps import FFServiceDep
 from .openapi_examples import (
     APPLICATION_RESPONSES,
@@ -36,7 +37,10 @@ router = APIRouter(prefix=api_prefix_config.v1.installment_ff, tags=["Installmen
     ),
     responses=FF_PRODUCTS_RESPONSES,
 )
-async def get_ff_products(ff_service: FFServiceDep) -> FFProductsResponse:
+async def get_ff_products(
+    _: InstallmentBasicAuthDep,
+    ff_service: FFServiceDep,
+) -> FFProductsResponse:
     return await ff_service.get_products()
 
 
@@ -52,6 +56,7 @@ async def get_ff_products(ff_service: FFServiceDep) -> FFProductsResponse:
     responses=CREATE_APPLICATION_RESPONSES,
 )
 async def create_application(
+    _: InstallmentBasicAuthDep,
     request: Annotated[
         CreateInstallmentApplicationRequest,
         Body(openapi_examples=CREATE_APPLICATION_BODY),
@@ -69,6 +74,7 @@ async def create_application(
     responses=APPLICATION_RESPONSES,
 )
 async def get_application(
+    _: InstallmentBasicAuthDep,
     application_id: Annotated[
         int,
         Path(description="ID в installment_application_tab", examples=[1]),
@@ -86,6 +92,7 @@ async def get_application(
     responses=APPLICATION_RESPONSES,
 )
 async def poll_application(
+    _: InstallmentBasicAuthDep,
     application_id: Annotated[
         int,
         Path(description="ID в installment_application_tab", examples=[1]),

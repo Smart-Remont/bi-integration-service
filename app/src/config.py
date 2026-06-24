@@ -11,6 +11,11 @@ class BigIntegrationAuthConfig:
     password: str = os.getenv("INTEGRATION_HS_BI_PASSWORD", "")
 
 
+class InstallmentAuthConfig:
+    username: str = os.getenv("INSTALLMENT_API_USER", "")
+    password: str = os.getenv("INSTALLMENT_API_PASSWORD", "")
+
+
 class CORSConfig:
     allow_origins: List[str] = [
         "http://localhost:3000",
@@ -27,4 +32,5 @@ class AppConfig:
 
 cors_config = CORSConfig()
 big_integration_auth_config = BigIntegrationAuthConfig()
+installment_auth_config = InstallmentAuthConfig()
 app_config = AppConfig()
