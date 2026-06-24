@@ -6,6 +6,7 @@ from typing import Any
 
 from bcrypt import checkpw
 from fastapi import HTTPException, status
+from loguru import logger
 from src.service import BaseService
 
 from ..schemas import (
@@ -29,25 +30,40 @@ class FFService(BaseService):
 
     async def get_products(self) -> FFProductsResponse:
         provider = await self._require_provider()
+        partner_id = self._required_config_value(provider, "partner_id")
+        logger.info(
+            "FF get_products start | base_url={base_url} partner_id={partner_id} channel={channel} env={env}",
+            base_url=provider.base_url,
+            partner_id=partner_id,
+            channel=provider.config.get("channel"),
+            env=self.app_env,
+        )
         access_token = await self._ensure_valid_token(provider=provider)
 
         try:
             payload = await self.ff_client.get_partner_info(
                 base_url=provider.base_url,
                 access_token=access_token,
-                partner_id=self._required_config_value(provider, "partner_id"),
+                partner_id=partner_id,
             )
         except FFClientError as exc:
             if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+                logger.warning("FF get_products got 401, re-authenticating")
                 access_token = await self._authenticate_and_store_token(provider)
                 payload = await self.ff_client.get_partner_info(
                     base_url=provider.base_url,
                     access_token=access_token,
-                    partner_id=self._required_config_value(provider, "partner_id"),
+                    partner_id=partner_id,
                 )
             else:
+                logger.error(
+                    "FF get_products failed | status={status} detail={detail}",
+                    status=exc.status_code,
+                    detail=exc.detail,
+                )
                 raise self._map_ff_error(exc) from exc
 
+        logger.info("FF get_products success | payload_keys={keys}", keys=sorted(payload.keys()))
         return FFProductsResponse.model_validate(payload)
 
     async def create_application(
@@ -306,6 +322,12 @@ class FFService(BaseService):
                 detail=f"Active FF credentials were not found for env={self.app_env}.",
             )
 
+        logger.info(
+            "FF authenticate start | base_url={base_url} username={username} env={env}",
+            base_url=provider.base_url,
+            username=credentials.username,
+            env=self.app_env,
+        )
         try:
             access_token, refresh_token = await self.ff_client.authenticate(
                 base_url=provider.base_url,
@@ -313,6 +335,11 @@ class FFService(BaseService):
                 password=credentials.password,
             )
         except FFClientError as exc:
+            logger.error(
+                "FF authenticate failed | status={status} detail={detail}",
+                status=exc.status_code,
+                detail=exc.detail,
+            )
             raise self._map_ff_error(exc) from exc
 
         expires_at = datetime.now(UTC) + timedelta(minutes=55)

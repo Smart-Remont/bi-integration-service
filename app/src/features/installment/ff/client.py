@@ -1,6 +1,8 @@
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
+from loguru import logger
 
 
 class FFClientError(Exception):
@@ -81,15 +83,41 @@ class FFClient:
         params: dict[str, str] | None = None,
         json: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        request_url = f"{base_url.rstrip('/')}{path}"
+        if params:
+            request_url = f"{request_url}?{urlencode(params)}"
+
+        logger.info(
+            "FF HTTP request | method={method} url={url} headers={headers} body={body}",
+            method=method,
+            url=request_url,
+            headers=self._mask_headers(headers),
+            body=self._mask_json_body(json),
+        )
+
         timeout = httpx.Timeout(timeout=20.0, connect=10.0)
-        async with httpx.AsyncClient(base_url=base_url.rstrip("/"), timeout=timeout) as client:
-            response = await client.request(
-                method=method,
-                url=path,
-                headers=headers,
-                params=params,
-                json=json,
-            )
+        try:
+            async with httpx.AsyncClient(base_url=base_url.rstrip("/"), timeout=timeout) as client:
+                response = await client.request(
+                    method=method,
+                    url=path,
+                    headers=headers,
+                    params=params,
+                    json=json,
+                )
+        except httpx.RequestError as exc:
+            logger.error("FF HTTP transport error | url={url} error={error}", url=request_url, error=exc)
+            raise FFClientError(
+                status_code=502,
+                detail=f"Freedom Finance request failed: {exc}",
+            ) from exc
+
+        logger.info(
+            "FF HTTP response | url={url} status={status} body={body}",
+            url=request_url,
+            status=response.status_code,
+            body=self._truncate_response_body(response),
+        )
         return self._parse_response(response)
 
     @staticmethod
@@ -114,4 +142,36 @@ class FFClient:
         else:
             detail = f"Freedom Finance request failed with status {response.status_code}."
 
+        logger.warning(
+            "FF HTTP error | status={status} detail={detail} raw_body={body}",
+            status=response.status_code,
+            detail=detail,
+            body=self._truncate_response_body(response),
+        )
         raise FFClientError(status_code=response.status_code, detail=detail)
+
+    @staticmethod
+    def _mask_headers(headers: dict[str, str] | None) -> dict[str, str] | None:
+        if headers is None:
+            return None
+        masked = dict(headers)
+        authorization = masked.get("Authorization")
+        if isinstance(authorization, str) and authorization.startswith("JWT "):
+            masked["Authorization"] = "JWT ***"
+        return masked
+
+    @staticmethod
+    def _mask_json_body(body: dict[str, Any] | None) -> dict[str, Any] | None:
+        if body is None:
+            return None
+        masked = dict(body)
+        if "password" in masked:
+            masked["password"] = "***"
+        return masked
+
+    @staticmethod
+    def _truncate_response_body(response: httpx.Response, limit: int = 4000) -> str:
+        text = response.text
+        if len(text) <= limit:
+            return text
+        return f"{text[:limit]}...<truncated>"
