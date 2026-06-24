@@ -71,6 +71,10 @@ class CreateInstallmentApplicationRequest(BaseSchema):
         description="product_id из GET /ff/products",
         examples=["SR_MOCK_FACT_12"],
     )
+    repayment_method: str = Field(
+        description="repayment_method из продукта FF: ANNUITY | EQUAL_INSTALMENTS | INSTALLMENT",
+        examples=["INSTALLMENT"],
+    )
     loan_type: Literal["installment", "credit"] = Field(
         default="installment",
         description="installment — рассрочка 0%, credit — кредит",

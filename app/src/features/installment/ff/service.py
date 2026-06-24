@@ -398,9 +398,13 @@ class FFService(BaseService):
             "credit_params": {
                 "period": request.period,
                 "principal": float(request.principal),
+                "repayment_method": request.repayment_method,
             },
             "reference_id": reference_id,
-            "credit_configs": {"is_knox": False},
+            "credit_configs": {
+                "with_insurance": False,
+                "is_knox": False,
+            },
             "additional_information": {
                 "hook_url": self._required_config_value(provider, "hook_url"),
                 "failure_url": self._required_config_value(provider, "failure_url"),
