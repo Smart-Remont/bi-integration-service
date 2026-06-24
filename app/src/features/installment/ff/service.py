@@ -513,10 +513,28 @@ class FFService(BaseService):
 
     @staticmethod
     def _extract_poll_approved_params(payload: dict[str, Any]) -> dict[str, Any] | None:
+        result: dict[str, Any] = {}
+
         credit_params = payload.get("credit_params")
         if isinstance(credit_params, dict):
-            return dict(credit_params)
-        return None
+            result.update(credit_params)
+
+        for key in (
+            "status_reason",
+            "credit_contract",
+            "iin",
+            "mobile_phone",
+            "channel",
+            "first_name",
+            "last_name",
+            "middle_name",
+            "reference_id",
+        ):
+            value = payload.get(key)
+            if value is not None and str(value).strip():
+                result[key] = value
+
+        return result or None
 
     def _build_approved_params(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         source = payload.get("approved_params")
@@ -524,6 +542,9 @@ class FFService(BaseService):
         alternative_reason = self._extract_string(payload, "alternative_reason")
         if alternative_reason is not None:
             approved_params["alternative_reason"] = alternative_reason
+        status_reason = self._extract_string(payload, "status_reason")
+        if status_reason is not None:
+            approved_params["status_reason"] = status_reason
         return approved_params or None
 
     @staticmethod
