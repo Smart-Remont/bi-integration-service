@@ -152,6 +152,11 @@ class FFService(BaseService):
             provider_code="FF",
         )
 
+    async def get_applications_by_client_request(
+        self, client_request_id: int
+    ) -> list[InstallmentApplicationResponse]:
+        return await self.ff_repository.get_applications_by_client_request(client_request_id)
+
     async def get_application_by_id(self, application_id: int) -> InstallmentApplicationResponse:
         application = await self.ff_repository.get_application_by_id(application_id)
         if application is None:

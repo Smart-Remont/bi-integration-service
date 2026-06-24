@@ -20,6 +20,7 @@ from .schemas import (
     CreateInstallmentApplicationResponse,
     FFWebhookPayload,
     FFProductsResponse,
+    InstallmentApplicationListResponse,
     InstallmentApplicationResponse,
     WebhookAckResponse,
 )
@@ -42,6 +43,20 @@ async def get_ff_products(
     ff_service: FFServiceDep,
 ) -> FFProductsResponse:
     return await ff_service.get_products()
+
+
+@router.get(
+    "/applications",
+    response_model=InstallmentApplicationListResponse,
+    summary="Список заявок по client_request_id",
+)
+async def list_applications(
+    _: InstallmentBasicAuthDep,
+    client_request_id: int,
+    ff_service: FFServiceDep,
+) -> InstallmentApplicationListResponse:
+    items = await ff_service.get_applications_by_client_request(client_request_id)
+    return InstallmentApplicationListResponse(items=items, total=len(items))
 
 
 @router.post(

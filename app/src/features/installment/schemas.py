@@ -46,6 +46,11 @@ class FFProductsResponse(BaseSchema):
     products: list[FFProduct]
 
 
+class InstallmentApplicationListResponse(BaseSchema):
+    items: list["InstallmentApplicationResponse"]
+    total: int
+
+
 class CreateInstallmentApplicationRequest(BaseSchema):
     model_config = ConfigDict(
         from_attributes=True,

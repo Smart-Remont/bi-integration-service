@@ -203,6 +203,23 @@ class FFRepository(BaseRepository):
             )
         )
 
+    async def get_applications_by_client_request(
+        self, client_request_id: int
+    ) -> list[InstallmentApplicationResponse]:
+        rows = await self.call_sp(
+            "public.installment__applications_list_by_client_request",
+            client_request_id,
+            cursor=True,
+            module_code="MYSPACE",
+        )
+        result = []
+        for row in rows:
+            payload = dict(row)
+            if isinstance(payload.get("approved_params"), str):
+                payload["approved_params"] = json.loads(payload["approved_params"])
+            result.append(InstallmentApplicationResponse.model_validate(payload))
+        return result
+
     async def get_application_by_id(self, application_id: int) -> InstallmentApplicationResponse | None:
         rows = await self.call_sp(
             "public.installment__application_get",
