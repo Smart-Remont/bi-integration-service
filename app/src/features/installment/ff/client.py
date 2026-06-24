@@ -141,12 +141,18 @@ class FFClient:
                 detail = "Freedom Finance request failed."
         else:
             detail = f"Freedom Finance request failed with status {response.status_code}."
+            raw_body = FFClient._truncate_response_body(response)
+            if "cloudflare" in raw_body.lower() or "you have been blocked" in raw_body.lower():
+                detail = (
+                    f"Freedom Finance blocked the request (HTTP {response.status_code}, Cloudflare). "
+                    "Whitelist server outbound IP with the bank."
+                )
 
         logger.warning(
             "FF HTTP error | status={status} detail={detail} raw_body={body}",
             status=response.status_code,
             detail=detail,
-            body=self._truncate_response_body(response),
+            body=FFClient._truncate_response_body(response),
         )
         raise FFClientError(status_code=response.status_code, detail=detail)
 
