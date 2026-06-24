@@ -32,28 +32,30 @@ class FFService(BaseService):
         provider = await self._require_provider()
         partner_id = self._required_config_value(provider, "partner_id")
         logger.info(
-            "FF get_products start | base_url={base_url} partner_id={partner_id} channel={channel} env={env}",
+            "FF get_products start | base_url={base_url} partner_id={partner_id} channel={channel} resolve_ip={resolve_ip} env={env}",
             base_url=provider.base_url,
             partner_id=partner_id,
             channel=provider.config.get("channel"),
+            resolve_ip=self._provider_resolve_ip(provider),
             env=self.app_env,
         )
         access_token = await self._ensure_valid_token(provider=provider)
+        ff_kwargs = self._ff_request_kwargs(provider)
 
         try:
             payload = await self.ff_client.get_partner_info(
-                base_url=provider.base_url,
                 access_token=access_token,
                 partner_id=partner_id,
+                **ff_kwargs,
             )
         except FFClientError as exc:
             if exc.status_code == status.HTTP_401_UNAUTHORIZED:
                 logger.warning("FF get_products got 401, re-authenticating")
                 access_token = await self._authenticate_and_store_token(provider)
                 payload = await self.ff_client.get_partner_info(
-                    base_url=provider.base_url,
                     access_token=access_token,
                     partner_id=partner_id,
+                    **ff_kwargs,
                 )
             else:
                 logger.error(
@@ -258,20 +260,21 @@ class FFService(BaseService):
 
     async def _apply_with_reauth(self, provider: FFProvider, payload: dict[str, Any]) -> dict[str, Any]:
         access_token = await self._ensure_valid_token(provider=provider)
+        ff_kwargs = self._ff_request_kwargs(provider)
         try:
             return await self.ff_client.apply_goods_loan_lead(
-                base_url=provider.base_url,
                 access_token=access_token,
                 payload=payload,
+                **ff_kwargs,
             )
         except FFClientError as exc:
             if exc.status_code == status.HTTP_401_UNAUTHORIZED:
                 refreshed_token = await self._authenticate_and_store_token(provider=provider)
                 try:
                     return await self.ff_client.apply_goods_loan_lead(
-                        base_url=provider.base_url,
                         access_token=refreshed_token,
                         payload=payload,
+                        **ff_kwargs,
                     )
                 except FFClientError as retry_exc:
                     raise self._map_ff_error(retry_exc) from retry_exc
@@ -279,20 +282,21 @@ class FFService(BaseService):
 
     async def _poll_with_reauth(self, provider: FFProvider, application_uuid: str) -> dict[str, Any]:
         access_token = await self._ensure_valid_token(provider=provider)
+        ff_kwargs = self._ff_request_kwargs(provider)
         try:
             return await self.ff_client.get_goods_application_info(
-                base_url=provider.base_url,
                 access_token=access_token,
                 uuid=application_uuid,
+                **ff_kwargs,
             )
         except FFClientError as exc:
             if exc.status_code == status.HTTP_401_UNAUTHORIZED:
                 refreshed_token = await self._authenticate_and_store_token(provider=provider)
                 try:
                     return await self.ff_client.get_goods_application_info(
-                        base_url=provider.base_url,
                         access_token=refreshed_token,
                         uuid=application_uuid,
+                        **ff_kwargs,
                     )
                 except FFClientError as retry_exc:
                     raise self._map_ff_error(retry_exc) from retry_exc
@@ -323,16 +327,17 @@ class FFService(BaseService):
             )
 
         logger.info(
-            "FF authenticate start | base_url={base_url} username={username} env={env}",
+            "FF authenticate start | base_url={base_url} username={username} resolve_ip={resolve_ip} env={env}",
             base_url=provider.base_url,
             username=credentials.username,
+            resolve_ip=self._provider_resolve_ip(provider),
             env=self.app_env,
         )
         try:
             access_token, refresh_token = await self.ff_client.authenticate(
-                base_url=provider.base_url,
                 username=credentials.username,
                 password=credentials.password,
+                **self._ff_request_kwargs(provider),
             )
         except FFClientError as exc:
             logger.error(
@@ -360,6 +365,20 @@ class FFService(BaseService):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"FF provider config.{key} is missing.",
         )
+
+    @staticmethod
+    def _provider_resolve_ip(provider: FFProvider) -> str | None:
+        value = provider.config.get("resolve_ip")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        return None
+
+    @classmethod
+    def _ff_request_kwargs(cls, provider: FFProvider) -> dict[str, str | None]:
+        return {
+            "base_url": provider.base_url,
+            "resolve_ip": cls._provider_resolve_ip(provider),
+        }
 
     def _build_apply_payload(
         self,
