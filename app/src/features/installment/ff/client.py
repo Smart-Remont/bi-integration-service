@@ -156,7 +156,9 @@ class FFClient:
 
         timeout = httpx.Timeout(timeout=20.0, connect=10.0)
         try:
-            async with httpx.AsyncClient(base_url=connect_base, timeout=timeout) as client:
+            async with httpx.AsyncClient(
+                base_url=connect_base, timeout=timeout, follow_redirects=True
+            ) as client:
                 response = await client.request(
                     method=method,
                     url=path,
