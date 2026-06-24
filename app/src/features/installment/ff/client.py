@@ -27,7 +27,7 @@ class FFClient:
 
     @staticmethod
     def _auth_header(access_token: str) -> dict[str, str]:
-        return {"Authorization": f"Bearer {access_token}"}
+        return {"Authorization": f"JWT {access_token}"}
 
     @staticmethod
     def _transport_target(
@@ -157,12 +157,14 @@ class FFClient:
         timeout = httpx.Timeout(timeout=20.0, connect=10.0)
         try:
             async with httpx.AsyncClient(
-                base_url=connect_base, timeout=timeout, follow_redirects=True
+                base_url=connect_base,
+                timeout=timeout,
+                follow_redirects=True,
+                headers=outgoing_headers,
             ) as client:
                 response = await client.request(
                     method=method,
                     url=path,
-                    headers=outgoing_headers,
                     params=params,
                     json=json,
                     extensions=extensions,
