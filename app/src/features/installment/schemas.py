@@ -17,10 +17,14 @@ from .openapi_examples import (
 )
 
 
-class FFRepaymentCondition(BaseSchema):
+class FFPrincipalLimits(BaseSchema):
     min: Decimal
     max: Decimal
+
+
+class FFRepaymentCondition(BaseSchema):
     periods: list[int]
+    principal_limits: FFPrincipalLimits
 
 
 class FFProduct(BaseSchema):

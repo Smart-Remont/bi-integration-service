@@ -22,14 +22,15 @@ CREATE_APPLICATION_RESPONSE = {
 }
 
 FF_PRODUCTS_RESPONSE = {
-    "partner_id": "SR_MOCK_PARTNER",
-    "name": "Smart Remont",
+    "partner_id": "SMART_REMONT",
+    "name": "TOO SmartRemont",
     "products": [
         {
-            "product_id": "SR_MOCK_FACT_12",
-            "repayment_method": "INSTALMENT",
+            "product_id": "MECHTA_INST",
+            "repayment_method": "INSTALLMENT",
             "repayment": [
-                {"min": 200000, "max": 8000000, "periods": [12, 24, 36]},
+                {"periods": [6, 12], "principal_limits": {"min": 20000, "max": 200000}},
+                {"periods": [24], "principal_limits": {"min": 200000, "max": 2000000}},
             ],
         },
     ],
