@@ -19,6 +19,7 @@ from .openapi_examples import (
     WEBHOOK_REJECTED,
 )
 from .schemas import (
+    AllowedBankListResponse,
     CreateInstallmentApplicationRequest,
     CreateInstallmentApplicationResponse,
     FFWebhookPayload,
@@ -104,6 +105,23 @@ async def list_provider_products(
     current_only: bool = True,
 ) -> ProviderProductListResponse:
     return await ff_service.list_provider_products(provider_code, current_only=current_only)
+
+
+@router.get(
+    "/allowed-banks",
+    response_model=AllowedBankListResponse,
+    summary="Online-банки, доступные для сделки",
+    description=(
+        "Список online bank_tab через credit_program для client_request_id. "
+        "Используется CRM при подаче заявки."
+    ),
+)
+async def list_allowed_banks(
+    _: InstallmentBasicAuthDep,
+    client_request_id: int,
+    ff_service: FFServiceDep,
+) -> AllowedBankListResponse:
+    return await ff_service.get_allowed_banks_for_client_request(client_request_id)
 
 
 @router.get(

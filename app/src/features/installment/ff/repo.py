@@ -139,22 +139,27 @@ class FFRepository(BaseRepository):
         client_request_id: int,
         provider_id: int,
         product_id: str,
+        bank_id: int,
         loan_type: str,
         principal: Decimal,
         period: int,
         created_by: int,
+        installment_product_id: int | None = None,
         status: str = "NEW",
     ) -> int:
         payload = {
             "client_request_id": client_request_id,
             "provider_id": provider_id,
             "product_id": product_id,
+            "bank_id": bank_id,
             "loan_type": loan_type,
             "principal": str(principal),
             "period": period,
             "created_by": created_by,
             "status": status,
         }
+        if installment_product_id is not None:
+            payload["installment_product_id"] = installment_product_id
         scalar_result = scalar_from_sp_rows(
             await self.call_sp(
                 "public.installment__application_create",

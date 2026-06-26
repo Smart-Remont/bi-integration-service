@@ -10,6 +10,8 @@ from loguru import logger
 from src.service import BaseService
 
 from ..schemas import (
+    AllowedBankListResponse,
+    AllowedBankResponse,
     CreateInstallmentApplicationRequest,
     CreateInstallmentApplicationResponse,
     FFProductsResponse,
@@ -133,6 +135,7 @@ class FFService(BaseService):
             client_request_id=request.client_request_id,
             provider_id=provider.id,
             product_id=request.product_id,
+            bank_id=request.bank_id,
             loan_type=request.loan_type,
             principal=request.principal,
             period=request.period,
@@ -187,6 +190,18 @@ class FFService(BaseService):
         self, client_request_id: int
     ) -> list[InstallmentApplicationResponse]:
         return await self.ff_repository.get_applications_by_client_request(client_request_id)
+
+    async def get_allowed_banks_for_client_request(
+        self, client_request_id: int
+    ) -> AllowedBankListResponse:
+        if not await self.ff_repository.client_request_exists(client_request_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"client_request_id={client_request_id} was not found.",
+            )
+        rows = await self.ff_repository.get_allowed_banks_for_client_request(client_request_id)
+        items = [AllowedBankResponse.model_validate(row) for row in rows]
+        return AllowedBankListResponse(items=items, total=len(items))
 
     async def get_application_by_id(self, application_id: int) -> InstallmentApplicationResponse:
         application = await self.ff_repository.get_application_by_id(application_id)

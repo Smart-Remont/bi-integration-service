@@ -6,6 +6,7 @@ CREATE_APPLICATION_REQUEST = {
     "iin": "891026301046",
     "mobile_phone": "+77066078118",
     "product_id": "MECHTA_INST",
+    "bank_id": 42,
     "repayment_method": "INSTALLMENT",
     "loan_type": "installment",
     "principal": 1500000,
@@ -103,6 +104,9 @@ APPLICATION_RESPONSE = {
     },
     "redirect_url": "https://loan-cash-superapp.example/goods-loan?uuid=fc58a802-ce40-4c8b-9cff-9f11930e1702",
     "created_by": 42,
+    "bank_id": 42,
+    "bank_name": "Freedom Finance Online",
+    "installment_product_id": 1,
     "created_at": "2026-06-17T10:00:00+00:00",
     "updated_at": "2026-06-17T10:05:00+00:00",
 }

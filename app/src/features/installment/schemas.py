@@ -141,6 +141,10 @@ class CreateInstallmentApplicationRequest(BaseSchema):
         description="product_id из GET /ff/products",
         examples=["SR_MOCK_FACT_12"],
     )
+    bank_id: int = Field(
+        description="ID online bank_tab, разрешённого для client_request (credit program)",
+        examples=[42],
+    )
     repayment_method: str = Field(
         description="repayment_method из продукта FF: ANNUITY | EQUAL_INSTALMENTS | INSTALLMENT",
         examples=["INSTALLMENT"],
@@ -192,8 +196,25 @@ class InstallmentApplicationResponse(BaseSchema):
     approved_params: dict[str, Any] | None = None
     redirect_url: str | None = None
     created_by: int | None = None
+    bank_id: int | None = None
+    bank_name: str | None = None
+    installment_product_id: int | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class AllowedBankResponse(BaseSchema):
+    bank_id: int
+    provider_product_id: str | None = None
+    installment_product_id: int | None = None
+    bank_code: str
+    bank_name: str
+    credit_program_id: int
+
+
+class AllowedBankListResponse(BaseSchema):
+    items: list[AllowedBankResponse]
+    total: int
 
 
 class FFWebhookPayload(BaseSchema):
