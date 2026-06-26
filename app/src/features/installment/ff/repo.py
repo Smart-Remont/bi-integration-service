@@ -44,6 +44,15 @@ class FFWebhookApplication:
     approved_params: dict[str, Any] | None
 
 
+@dataclass(slots=True, frozen=True)
+class FFAllowedBank:
+    bank_id: int
+    provider_product_id: str | None
+    bank_code: str
+    bank_name: str
+    credit_program_id: int
+
+
 class FFRepository(BaseRepository):
     async def get_provider_by_code(self, code: str) -> FFProvider | None:
         rows = await self.call_sp(
@@ -347,3 +356,36 @@ class FFRepository(BaseRepository):
                 module_code="MYSPACE",
             )
         )
+
+    async def get_allowed_banks_for_client_request(self, client_request_id: int) -> list[dict]:
+        rows = await self.call_sp(
+            "public.installment__allowed_banks_for_client_request",
+            client_request_id,
+            cursor=True,
+            module_code="MYSPACE",
+        )
+        return [dict(row) for row in rows]
+
+    async def sync_banks_from_products(self, *, provider_code: str, products: list[dict]) -> dict:
+        payload = {
+            "provider_code": provider_code,
+            "products": products,
+        }
+        raw_result = scalar_from_sp_rows(
+            await self.call_sp(
+                "public.installment__bank_sync_from_provider",
+                json.dumps(payload),
+                module_code="MYSPACE",
+            )
+        )
+        if raw_result is None:
+            raise RuntimeError("Failed to sync banks from provider.")
+        if isinstance(raw_result, str):
+            parsed = json.loads(raw_result)
+        elif isinstance(raw_result, dict):
+            parsed = raw_result
+        else:
+            raise RuntimeError("Unexpected sync banks response type.")
+        if not isinstance(parsed, dict):
+            raise RuntimeError("Unexpected sync banks response shape.")
+        return parsed

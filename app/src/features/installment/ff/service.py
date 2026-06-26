@@ -14,6 +14,7 @@ from ..schemas import (
     CreateInstallmentApplicationResponse,
     FFProductsResponse,
     InstallmentApplicationResponse,
+    SyncBanksResponse,
     WebhookAckResponse,
 )
 from .client import FFClient, FFClientError
@@ -67,6 +68,15 @@ class FFService(BaseService):
 
         logger.info("FF get_products success | payload_keys={keys}", keys=sorted(payload.keys()))
         return FFProductsResponse.model_validate(payload)
+
+    async def sync_banks(self) -> SyncBanksResponse:
+        products_response = await self.get_products()
+        products_payload = [product.model_dump(mode="json") for product in products_response.products]
+        result = await self.ff_repository.sync_banks_from_products(
+            provider_code="FF",
+            products=products_payload,
+        )
+        return SyncBanksResponse.model_validate(result)
 
     async def create_application(
         self,

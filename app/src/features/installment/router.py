@@ -10,6 +10,7 @@ from .openapi_examples import (
     CREATE_APPLICATION_BODY,
     CREATE_APPLICATION_RESPONSES,
     FF_PRODUCTS_RESPONSES,
+    SYNC_BANKS_RESPONSES,
     WEBHOOK_ACK_RESPONSES,
     WEBHOOK_APPROVED,
     WEBHOOK_ISSUED,
@@ -22,6 +23,7 @@ from .schemas import (
     FFProductsResponse,
     InstallmentApplicationListResponse,
     InstallmentApplicationResponse,
+    SyncBanksResponse,
     WebhookAckResponse,
 )
 
@@ -43,6 +45,23 @@ async def get_ff_products(
     ff_service: FFServiceDep,
 ) -> FFProductsResponse:
     return await ff_service.get_products()
+
+
+@router.post(
+    "/sync-banks",
+    response_model=SyncBanksResponse,
+    summary="Sync FF products into bank_tab",
+    description=(
+        "Загружает каталог из FF `get-partner-info` и upsert в `bank_tab` "
+        "(provider_code=FF, is_online=true). Запускать вручную или по cron раз в день."
+    ),
+    responses=SYNC_BANKS_RESPONSES,
+)
+async def sync_banks(
+    _: InstallmentBasicAuthDep,
+    ff_service: FFServiceDep,
+) -> SyncBanksResponse:
+    return await ff_service.sync_banks()
 
 
 @router.get(

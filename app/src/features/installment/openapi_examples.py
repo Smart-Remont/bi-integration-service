@@ -22,6 +22,12 @@ CREATE_APPLICATION_RESPONSE = {
     "provider_code": "FF",
 }
 
+SYNC_BANKS_RESPONSE = {
+    "inserted": 3,
+    "updated": 0,
+    "bank_ids": [68, 69, 70],
+}
+
 FF_PRODUCTS_RESPONSE = {
     "partner_id": "SMART_REMONT",
     "name": "TOO SmartRemont",
@@ -125,6 +131,22 @@ CREATE_APPLICATION_RESPONSES = {
                     "in_progress": {
                         "summary": "Отправлено в FF",
                         "value": CREATE_APPLICATION_RESPONSE,
+                    },
+                },
+            },
+        },
+    },
+}
+
+SYNC_BANKS_RESPONSES = {
+    200: {
+        "description": "Результат upsert в bank_tab",
+        "content": {
+            "application/json": {
+                "examples": {
+                    "first_sync": {
+                        "summary": "Первый sync (3 MECHTA продукта)",
+                        "value": SYNC_BANKS_RESPONSE,
                     },
                 },
             },

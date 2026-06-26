@@ -10,6 +10,7 @@ from .openapi_examples import (
     CREATE_APPLICATION_REQUEST,
     CREATE_APPLICATION_RESPONSE,
     FF_PRODUCTS_RESPONSE,
+    SYNC_BANKS_RESPONSE,
     WEBHOOK_ACK_RESPONSE,
     WEBHOOK_APPROVED,
     WEBHOOK_ISSUED,
@@ -31,6 +32,19 @@ class FFProduct(BaseSchema):
     product_id: str
     repayment_method: str
     repayment: list[FFRepaymentCondition]
+
+
+class SyncBanksResponse(BaseSchema):
+    model_config = ConfigDict(
+        from_attributes=True,
+        validate_by_alias=True,
+        validate_by_name=True,
+        json_schema_extra={"examples": [SYNC_BANKS_RESPONSE]},
+    )
+
+    inserted: int
+    updated: int
+    bank_ids: list[int]
 
 
 class FFProductsResponse(BaseSchema):
