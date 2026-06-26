@@ -198,17 +198,18 @@ class FFRepository(BaseRepository):
     async def insert_event_log(
         self,
         *,
-        installment_id: int,
+        installment_id: int | None,
         event_type: str,
         payload: dict[str, Any],
         source: str,
     ) -> None:
-        request_payload = {
-            "installment_id": installment_id,
+        request_payload: dict[str, Any] = {
             "event_type": event_type,
             "payload": payload,
             "source": source,
         }
+        if installment_id is not None:
+            request_payload["installment_id"] = installment_id
         scalar_from_sp_rows(
             await self.call_sp(
                 "public.installment__event_log_add",

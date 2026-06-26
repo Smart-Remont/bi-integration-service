@@ -82,7 +82,19 @@ class FFService(BaseService):
             provider_code="FF",
             products=products_payload,
         )
-        return SyncProductsResponse.model_validate(result)
+        sync_response = SyncProductsResponse.model_validate(result)
+        await self._log_event(
+            "SYNC_PRODUCTS",
+            source="INSTALLMENT",
+            payload={
+                "provider_code": "FF",
+                "products_fetched": len(products_payload),
+                "inserted": sync_response.inserted,
+                "unchanged": sync_response.unchanged,
+                "ids": sync_response.ids,
+            },
+        )
+        return sync_response
 
     async def sync_banks(self) -> SyncBanksResponse:
         logger.warning("sync_banks is deprecated; use sync_products (POST /sync-products)")
@@ -145,6 +157,23 @@ class FFService(BaseService):
         )
         reference_id = str(application_id)
 
+        init_payload = {
+            "client_request_id": request.client_request_id,
+            "bank_id": request.bank_id,
+            "product_id": request.product_id,
+            "loan_type": request.loan_type,
+            "principal": str(request.principal),
+            "period": request.period,
+            "created_by": request.created_by,
+            "reference_id": reference_id,
+        }
+        await self._log_event(
+            "APPLICATION_INIT",
+            installment_id=application_id,
+            source="INSTALLMENT",
+            payload=init_payload,
+        )
+
         payload = self._build_apply_payload(
             provider=provider,
             iin=iin,
@@ -152,10 +181,39 @@ class FFService(BaseService):
             request=request,
             reference_id=reference_id,
         )
+        await self._log_event(
+            "FF_APPLY_REQUEST",
+            installment_id=application_id,
+            source="FF",
+            payload=payload,
+        )
 
-        response_payload = await self._apply_with_reauth(provider=provider, payload=payload)
+        try:
+            response_payload = await self._apply_with_reauth(provider=provider, payload=payload)
+        except HTTPException as exc:
+            await self._log_event(
+                "FF_APPLY_FAILED",
+                installment_id=application_id,
+                source="FF",
+                payload={
+                    "error": self._extract_error_message(exc),
+                    "request": payload,
+                },
+            )
+            raise
+
         application_uuid = response_payload.get("uuid")
         if not isinstance(application_uuid, str) or not application_uuid:
+            await self._log_event(
+                "FF_APPLY_FAILED",
+                installment_id=application_id,
+                source="FF",
+                payload={
+                    "error": "Freedom Finance did not return application uuid.",
+                    "response": response_payload,
+                    "request": payload,
+                },
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Freedom Finance did not return application uuid.",
@@ -171,11 +229,15 @@ class FFService(BaseService):
             status="IN_PROGRESS",
             reference_id=reference_id,
         )
-        await self.ff_repository.insert_event_log(
+        await self._log_event(
+            "CREATED",
             installment_id=application_id,
-            event_type="CREATED",
-            payload=response_payload,
             source="FF",
+            payload={
+                "response": response_payload,
+                "request": payload,
+                "status": "IN_PROGRESS",
+            },
         )
 
         return CreateInstallmentApplicationResponse(
@@ -202,6 +264,15 @@ class FFService(BaseService):
             )
         rows = await self.ff_repository.get_allowed_banks_for_client_request(client_request_id)
         items = [AllowedBankResponse.model_validate(row) for row in rows]
+        await self._log_event(
+            "ALLOWED_BANKS_QUERY",
+            source="INSTALLMENT",
+            payload={
+                "client_request_id": client_request_id,
+                "total": len(items),
+                "bank_ids": [item.bank_id for item in items],
+            },
+        )
         return AllowedBankListResponse(items=items, total=len(items))
 
     async def get_application_by_id(self, application_id: int) -> InstallmentApplicationResponse:
@@ -226,9 +297,42 @@ class FFService(BaseService):
                 detail=f"Application id={application_id} was not found.",
             )
 
-        credit_detail_id = await self.ff_repository.apply_application_to_deal(
-            application_id=application_id,
-            created_by=created_by,
+        await self._log_event(
+            "MANUAL_APPLY_STARTED",
+            installment_id=application_id,
+            source="INSTALLMENT",
+            payload={
+                "created_by": created_by,
+                "status": application.status,
+                "client_request_id": application.client_request_id,
+            },
+        )
+
+        try:
+            credit_detail_id = await self.ff_repository.apply_application_to_deal(
+                application_id=application_id,
+                created_by=created_by,
+            )
+        except Exception as exc:
+            await self._log_event(
+                "MANUAL_APPLY_FAILED",
+                installment_id=application_id,
+                source="INSTALLMENT",
+                payload={
+                    "created_by": created_by,
+                    "error": self._extract_error_message(exc),
+                },
+            )
+            raise
+
+        await self._log_event(
+            "MANUAL_APPLY",
+            installment_id=application_id,
+            source="INSTALLMENT",
+            payload={
+                "created_by": created_by,
+                "client_request_credit_detail_id": credit_detail_id,
+            },
         )
         return ApplyInstallmentApplicationResponse(
             application_id=application_id,
@@ -249,7 +353,30 @@ class FFService(BaseService):
             )
 
         provider = await self._require_provider()
-        response_payload = await self._poll_with_reauth(provider=provider, application_uuid=application.uuid)
+        await self._log_event(
+            "POLL_STARTED",
+            installment_id=application_id,
+            source="FF",
+            payload={
+                "uuid": application.uuid,
+                "status_before": application.status,
+            },
+        )
+
+        try:
+            response_payload = await self._poll_with_reauth(provider=provider, application_uuid=application.uuid)
+        except HTTPException as exc:
+            await self._log_event(
+                "POLL_FAILED",
+                installment_id=application_id,
+                source="FF",
+                payload={
+                    "uuid": application.uuid,
+                    "error": self._extract_error_message(exc),
+                },
+            )
+            raise
+
         status_value = self._extract_poll_status(response_payload)
         approved_params = self._extract_poll_approved_params(response_payload)
         product_id = self._extract_string(response_payload, "product")
@@ -264,11 +391,26 @@ class FFService(BaseService):
             loan_type=loan_type,
             uuid=payload_uuid,
         )
-        await self.ff_repository.insert_event_log(
+        await self._log_event(
+            "STATUS_UPDATED",
             installment_id=application_id,
-            event_type="STATUS_POLL",
-            payload=response_payload,
+            source="INSTALLMENT",
+            payload={
+                "source": "poll",
+                "status_before": application.status,
+                "status_after": status_value,
+                "approved_params": approved_params,
+            },
+        )
+        await self._log_event(
+            "STATUS_POLL",
+            installment_id=application_id,
             source="FF",
+            payload={
+                "response": response_payload,
+                "status_before": application.status,
+                "status_after": status_value,
+            },
         )
         await self._try_auto_apply_on_issued(application_id)
         updated_application = await self.ff_repository.get_application_by_id(application_id)
@@ -285,7 +427,18 @@ class FFService(BaseService):
         *,
         authorization_header: str | None,
     ) -> WebhookAckResponse:
-        await self._verify_webhook_auth_if_configured(authorization_header)
+        try:
+            await self._verify_webhook_auth_if_configured(authorization_header)
+        except HTTPException as exc:
+            await self._log_event(
+                "WEBHOOK_AUTH_FAILED",
+                source="FF",
+                payload={
+                    "error": self._extract_error_message(exc),
+                    "hook": payload,
+                },
+            )
+            raise
 
         status_value = self._extract_status(payload)
         uuid = self._extract_string(payload, "uuid")
@@ -303,12 +456,43 @@ class FFService(BaseService):
             uuid=uuid,
         )
         if application is None:
+            await self._log_event(
+                "WEBHOOK_ORPHAN",
+                source="FF",
+                payload={
+                    "reference_id": reference_id,
+                    "uuid": uuid,
+                    "status": status_value,
+                    "hook": payload,
+                },
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Application was not found by reference_id/uuid.",
             )
 
+        await self._log_event(
+            "HOOK_RECEIVED",
+            installment_id=application.id,
+            source="FF",
+            payload={
+                "hook": payload,
+                "status_before": application.status,
+                "status_after": status_value,
+            },
+        )
+
         if application.status == status_value and application.approved_params == approved_params:
+            await self._log_event(
+                "HOOK_DUPLICATE",
+                installment_id=application.id,
+                source="FF",
+                payload={
+                    "reason": "no_status_change",
+                    "hook": payload,
+                    "status": status_value,
+                },
+            )
             if status_value == "ISSUED":
                 await self._try_auto_apply_on_issued(application.id)
             return WebhookAckResponse(ok=True)
@@ -323,16 +507,29 @@ class FFService(BaseService):
                 loan_type=loan_type,
                 redirect_url=redirect_url,
             )
-            await self.ff_repository.insert_event_log(
+            await self._log_event(
+                "STATUS_UPDATED",
                 installment_id=application.id,
-                event_type="HOOK_RECEIVED",
-                payload=payload,
-                source="FF",
+                source="INSTALLMENT",
+                payload={
+                    "source": "webhook",
+                    "status_before": application.status,
+                    "status_after": status_value,
+                    "approved_params": approved_params,
+                },
             )
             if status_value == "ISSUED":
                 await self._try_auto_apply_on_issued(application.id)
         except Exception as exc:
-            await self._safe_log_webhook_error(application.id, payload, exc)
+            await self._log_event(
+                "ERROR",
+                installment_id=application.id,
+                source="FF",
+                payload={
+                    "error": self._extract_error_message(exc),
+                    "hook_payload": payload,
+                },
+            )
             raise
 
         return WebhookAckResponse(ok=True)
@@ -657,17 +854,35 @@ class FFService(BaseService):
         if application.status != "ISSUED":
             return
         if application.client_request_credit_detail_id is not None:
+            await self._log_event(
+                "AUTO_APPLY_SKIPPED",
+                installment_id=application_id,
+                source="INSTALLMENT",
+                payload={
+                    "reason": "already_applied",
+                    "client_request_credit_detail_id": application.client_request_credit_detail_id,
+                },
+            )
             return
         if application.created_by is None:
             logger.warning(
                 "Auto-apply skipped | application_id={application_id} reason=created_by missing",
                 application_id=application_id,
             )
-            await self._safe_log_auto_apply_error(
-                application_id,
-                "created_by is missing on application",
+            await self._log_event(
+                "AUTO_APPLY_FAILED",
+                installment_id=application_id,
+                source="INSTALLMENT",
+                payload={"error": "created_by is missing on application"},
             )
             return
+
+        await self._log_event(
+            "AUTO_APPLY_STARTED",
+            installment_id=application_id,
+            source="INSTALLMENT",
+            payload={"created_by": application.created_by},
+        )
 
         try:
             credit_detail_id = await self.ff_repository.apply_application_to_deal(
@@ -680,49 +895,43 @@ class FFService(BaseService):
                 application_id=application_id,
                 error=self._extract_error_message(exc),
             )
-            await self._safe_log_auto_apply_error(application_id, exc)
+            await self._log_event(
+                "AUTO_APPLY_FAILED",
+                installment_id=application_id,
+                source="INSTALLMENT",
+                payload={"error": self._extract_error_message(exc)},
+            )
             return
 
-        await self.ff_repository.insert_event_log(
+        await self._log_event(
+            "AUTO_APPLY",
             installment_id=application_id,
-            event_type="AUTO_APPLY",
-            payload={"client_request_credit_detail_id": credit_detail_id},
             source="INSTALLMENT",
+            payload={"client_request_credit_detail_id": credit_detail_id},
         )
 
-    async def _safe_log_auto_apply_error(
+    async def _log_event(
         self,
-        application_id: int,
-        exc: Exception | str,
+        event_type: str,
+        *,
+        source: str,
+        installment_id: int | None = None,
+        payload: dict[str, Any] | None = None,
     ) -> None:
-        error_message = exc if isinstance(exc, str) else self._extract_error_message(exc)
         try:
             await self.ff_repository.insert_event_log(
-                installment_id=application_id,
-                event_type="AUTO_APPLY_FAILED",
-                payload={"error": error_message},
-                source="INSTALLMENT",
+                installment_id=installment_id,
+                event_type=event_type,
+                payload=payload or {},
+                source=source,
             )
-        except Exception:
-            return
-
-    async def _safe_log_webhook_error(
-        self,
-        application_id: int,
-        payload: dict[str, Any],
-        exc: Exception,
-    ) -> None:
-        error_message = self._extract_error_message(exc)
-        error_payload = {"error": error_message, "hook_payload": payload}
-        try:
-            await self.ff_repository.insert_event_log(
-                installment_id=application_id,
-                event_type="ERROR",
-                payload=error_payload,
-                source="FF",
+        except Exception as exc:
+            logger.warning(
+                "Event log write failed | event_type={event_type} installment_id={installment_id} error={error}",
+                event_type=event_type,
+                installment_id=installment_id,
+                error=str(exc),
             )
-        except Exception:
-            return
 
     @staticmethod
     def _extract_error_message(exc: Exception) -> str:
