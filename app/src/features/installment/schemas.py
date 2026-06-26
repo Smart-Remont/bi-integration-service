@@ -207,6 +207,10 @@ class AllowedBankResponse(BaseSchema):
     bank_id: int
     provider_product_id: str | None = None
     installment_product_id: int | None = None
+    period: int | None = None
+    principal_min: Decimal | None = None
+    principal_max: Decimal | None = None
+    repayment_method: str | None = None
     bank_code: str
     bank_name: str
     credit_program_id: int
