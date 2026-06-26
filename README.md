@@ -351,3 +351,33 @@ ruff format .
 - Gunicorn по умолчанию слушает `0.0.0.0:8000`.
 - Шаблоны: `ddu_contractor` (`/api/v1`), `big_integration/request_event_v3` (`/api/big_integration`) — детали в [AGENTS.md](AGENTS.md).
 
+## Installment FF (Freedom Finance)
+
+SQL-миграции: `sql/installment/` (порядок в комментариях файлов; сводка — `final_sql.sql`).
+
+| Этап | Файл | Назначение |
+|------|------|------------|
+| 6 | `19_cr_credit_detail__insert_from_installment.sql` | Применить одобренную/выданную заявку к сделке |
+
+**Apply-to-deal (этап 6):**
+
+```text
+POST /api/v1/installment/ff/applications/{id}/apply
+Body: { "created_by": <employee_id> }
+→ cr_credit_detail__insert_from_installment → client_request_credit_detail_tab
+```
+
+Доступные статусы заявки: `APPROVED`, `ISSUED`. Повторный вызов идемпотентен (возвращает существующий `client_request_credit_detail_id`).
+
+CRM прокси: `POST /crm/installment/applications/{id}/apply/` — кнопка «Применить к сделке» на вкладке «История».
+
+Ручной apply на dev:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/installment/19_cr_credit_detail__insert_from_installment.sql
+curl -u "$INSTALLMENT_API_USER:$INSTALLMENT_API_PASSWORD" \
+  -X POST "$INTEGRATION_API_URL/api/v1/installment/ff/applications/4/apply" \
+  -H "Content-Type: application/json" \
+  -d '{"created_by": 2543}'
+```
+

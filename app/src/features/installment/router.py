@@ -20,6 +20,8 @@ from .openapi_examples import (
 )
 from .schemas import (
     AllowedBankListResponse,
+    ApplyInstallmentApplicationRequest,
+    ApplyInstallmentApplicationResponse,
     CreateInstallmentApplicationRequest,
     CreateInstallmentApplicationResponse,
     FFWebhookPayload,
@@ -176,6 +178,31 @@ async def get_application(
     ff_service: FFServiceDep,
 ) -> InstallmentApplicationResponse:
     return await ff_service.get_application_by_id(application_id)
+
+
+@router.post(
+    "/applications/{application_id}/apply",
+    response_model=ApplyInstallmentApplicationResponse,
+    summary="Применить одобренную заявку к сделке",
+    description=(
+        "Создаёт запись в `client_request_credit_detail_tab` по заявке в статусе APPROVED или ISSUED "
+        "и связывает её через `installment_application_tab.client_request_credit_detail_id`. "
+        "Повторный вызов идемпотентен — возвращает уже созданный credit_detail_id."
+    ),
+)
+async def apply_application(
+    _: InstallmentBasicAuthDep,
+    application_id: Annotated[
+        int,
+        Path(description="ID в installment_application_tab", examples=[1]),
+    ],
+    request: ApplyInstallmentApplicationRequest,
+    ff_service: FFServiceDep,
+) -> ApplyInstallmentApplicationResponse:
+    return await ff_service.apply_application_to_deal(
+        application_id,
+        created_by=request.created_by,
+    )
 
 
 @router.post(

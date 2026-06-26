@@ -199,8 +199,18 @@ class InstallmentApplicationResponse(BaseSchema):
     bank_id: int | None = None
     bank_name: str | None = None
     installment_product_id: int | None = None
+    client_request_credit_detail_id: int | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class ApplyInstallmentApplicationRequest(BaseSchema):
+    created_by: int = Field(description="ID пользователя (hunter)", examples=[42])
+
+
+class ApplyInstallmentApplicationResponse(BaseSchema):
+    application_id: int
+    client_request_credit_detail_id: int
 
 
 class AllowedBankResponse(BaseSchema):

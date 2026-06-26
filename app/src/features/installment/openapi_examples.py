@@ -107,6 +107,7 @@ APPLICATION_RESPONSE = {
     "bank_id": 42,
     "bank_name": "Freedom Finance Online",
     "installment_product_id": 1,
+    "client_request_credit_detail_id": None,
     "created_at": "2026-06-17T10:00:00+00:00",
     "updated_at": "2026-06-17T10:05:00+00:00",
 }

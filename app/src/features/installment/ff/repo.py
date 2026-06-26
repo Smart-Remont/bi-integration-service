@@ -407,6 +407,28 @@ class FFRepository(BaseRepository):
         )
         return [dict(row) for row in rows]
 
+    async def apply_application_to_deal(
+        self,
+        *,
+        application_id: int,
+        created_by: int,
+    ) -> int:
+        payload = {
+            "application_id": application_id,
+            "created_by": created_by,
+        }
+        scalar_result = scalar_from_sp_rows(
+            await self.call_sp(
+                "public.cr_credit_detail__insert_from_installment",
+                json.dumps(payload),
+                session_user_id=created_by,
+                module_code="MYSPACE",
+            )
+        )
+        if scalar_result is None:
+            raise RuntimeError("Failed to apply installment application to deal.")
+        return int(scalar_result)
+
     async def sync_banks_from_products(self, *, provider_code: str, products: list[dict]) -> dict:
         """Deprecated: use sync_provider_products."""
         result = await self.sync_provider_products(provider_code=provider_code, products=products)

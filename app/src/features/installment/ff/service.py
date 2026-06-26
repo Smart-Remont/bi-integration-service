@@ -12,6 +12,7 @@ from src.service import BaseService
 from ..schemas import (
     AllowedBankListResponse,
     AllowedBankResponse,
+    ApplyInstallmentApplicationResponse,
     CreateInstallmentApplicationRequest,
     CreateInstallmentApplicationResponse,
     FFProductsResponse,
@@ -212,6 +213,28 @@ class FFService(BaseService):
             )
         return application
 
+    async def apply_application_to_deal(
+        self,
+        application_id: int,
+        *,
+        created_by: int,
+    ) -> ApplyInstallmentApplicationResponse:
+        application = await self.ff_repository.get_application_by_id(application_id)
+        if application is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Application id={application_id} was not found.",
+            )
+
+        credit_detail_id = await self.ff_repository.apply_application_to_deal(
+            application_id=application_id,
+            created_by=created_by,
+        )
+        return ApplyInstallmentApplicationResponse(
+            application_id=application_id,
+            client_request_credit_detail_id=credit_detail_id,
+        )
+
     async def poll_application(self, application_id: int) -> InstallmentApplicationResponse:
         application = await self.ff_repository.get_application_by_id(application_id)
         if application is None:
@@ -247,6 +270,7 @@ class FFService(BaseService):
             payload=response_payload,
             source="FF",
         )
+        await self._try_auto_apply_on_issued(application_id)
         updated_application = await self.ff_repository.get_application_by_id(application_id)
         if updated_application is None:
             raise HTTPException(
@@ -285,6 +309,8 @@ class FFService(BaseService):
             )
 
         if application.status == status_value and application.approved_params == approved_params:
+            if status_value == "ISSUED":
+                await self._try_auto_apply_on_issued(application.id)
             return WebhookAckResponse(ok=True)
 
         try:
@@ -303,6 +329,8 @@ class FFService(BaseService):
                 payload=payload,
                 source="FF",
             )
+            if status_value == "ISSUED":
+                await self._try_auto_apply_on_issued(application.id)
         except Exception as exc:
             await self._safe_log_webhook_error(application.id, payload, exc)
             raise
@@ -621,6 +649,62 @@ class FFService(BaseService):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Invalid webhook password hash configuration.",
             ) from exc
+
+    async def _try_auto_apply_on_issued(self, application_id: int) -> None:
+        application = await self.ff_repository.get_application_by_id(application_id)
+        if application is None:
+            return
+        if application.status != "ISSUED":
+            return
+        if application.client_request_credit_detail_id is not None:
+            return
+        if application.created_by is None:
+            logger.warning(
+                "Auto-apply skipped | application_id={application_id} reason=created_by missing",
+                application_id=application_id,
+            )
+            await self._safe_log_auto_apply_error(
+                application_id,
+                "created_by is missing on application",
+            )
+            return
+
+        try:
+            credit_detail_id = await self.ff_repository.apply_application_to_deal(
+                application_id=application_id,
+                created_by=application.created_by,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Auto-apply failed | application_id={application_id} error={error}",
+                application_id=application_id,
+                error=self._extract_error_message(exc),
+            )
+            await self._safe_log_auto_apply_error(application_id, exc)
+            return
+
+        await self.ff_repository.insert_event_log(
+            installment_id=application_id,
+            event_type="AUTO_APPLY",
+            payload={"client_request_credit_detail_id": credit_detail_id},
+            source="INSTALLMENT",
+        )
+
+    async def _safe_log_auto_apply_error(
+        self,
+        application_id: int,
+        exc: Exception | str,
+    ) -> None:
+        error_message = exc if isinstance(exc, str) else self._extract_error_message(exc)
+        try:
+            await self.ff_repository.insert_event_log(
+                installment_id=application_id,
+                event_type="AUTO_APPLY_FAILED",
+                payload={"error": error_message},
+                source="INSTALLMENT",
+            )
+        except Exception:
+            return
 
     async def _safe_log_webhook_error(
         self,
