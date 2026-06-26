@@ -10,7 +10,9 @@ from .openapi_examples import (
     CREATE_APPLICATION_BODY,
     CREATE_APPLICATION_RESPONSES,
     FF_PRODUCTS_RESPONSES,
+    PROVIDER_PRODUCTS_RESPONSES,
     SYNC_BANKS_RESPONSES,
+    SYNC_PRODUCTS_RESPONSES,
     WEBHOOK_ACK_RESPONSES,
     WEBHOOK_APPROVED,
     WEBHOOK_ISSUED,
@@ -23,7 +25,9 @@ from .schemas import (
     FFProductsResponse,
     InstallmentApplicationListResponse,
     InstallmentApplicationResponse,
+    ProviderProductListResponse,
     SyncBanksResponse,
+    SyncProductsResponse,
     WebhookAckResponse,
 )
 
@@ -48,20 +52,58 @@ async def get_ff_products(
 
 
 @router.post(
+    "/sync-products",
+    response_model=SyncProductsResponse,
+    summary="Sync FF products into provider catalog",
+    description=(
+        "Загружает каталог из FF `get-partner-info` и append-only sync в "
+        "`installment_provider_product_tab` (explode по period + principal limits). "
+        "Запускать вручную или по cron раз в день."
+    ),
+    responses=SYNC_PRODUCTS_RESPONSES,
+)
+async def sync_products(
+    _: InstallmentBasicAuthDep,
+    ff_service: FFServiceDep,
+) -> SyncProductsResponse:
+    return await ff_service.sync_products()
+
+
+@router.post(
     "/sync-banks",
     response_model=SyncBanksResponse,
-    summary="Sync FF products into bank_tab",
+    summary="[Deprecated] Sync FF products into bank_tab",
     description=(
-        "Загружает каталог из FF `get-partner-info` и upsert в `bank_tab` "
-        "(provider_code=FF, is_online=true). Запускать вручную или по cron раз в день."
+        "**Deprecated.** Используйте `POST /sync-products`. "
+        "Обёртка для обратной совместимости — пишет в каталог, не в `bank_tab`."
     ),
     responses=SYNC_BANKS_RESPONSES,
+    deprecated=True,
 )
 async def sync_banks(
     _: InstallmentBasicAuthDep,
     ff_service: FFServiceDep,
 ) -> SyncBanksResponse:
     return await ff_service.sync_banks()
+
+
+@router.get(
+    "/provider-products",
+    response_model=ProviderProductListResponse,
+    summary="Каталог продуктов провайдера",
+    description=(
+        "Список строк из `installment_provider_product_tab` после sync. "
+        "`current_only=true` — только актуальные версии (`valid_to IS NULL`)."
+    ),
+    responses=PROVIDER_PRODUCTS_RESPONSES,
+)
+async def list_provider_products(
+    _: InstallmentBasicAuthDep,
+    ff_service: FFServiceDep,
+    provider_code: str = "FF",
+    current_only: bool = True,
+) -> ProviderProductListResponse:
+    return await ff_service.list_provider_products(provider_code, current_only=current_only)
 
 
 @router.get(

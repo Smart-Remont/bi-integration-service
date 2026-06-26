@@ -366,26 +366,47 @@ class FFRepository(BaseRepository):
         )
         return [dict(row) for row in rows]
 
-    async def sync_banks_from_products(self, *, provider_code: str, products: list[dict]) -> dict:
+    async def sync_provider_products(self, *, provider_code: str, products: list[dict]) -> dict:
         payload = {
             "provider_code": provider_code,
             "products": products,
         }
         raw_result = scalar_from_sp_rows(
             await self.call_sp(
-                "public.installment__bank_sync_from_provider",
+                "public.installment__provider_product_sync",
                 json.dumps(payload),
                 module_code="MYSPACE",
             )
         )
         if raw_result is None:
-            raise RuntimeError("Failed to sync banks from provider.")
+            raise RuntimeError("Failed to sync provider products.")
         if isinstance(raw_result, str):
             parsed = json.loads(raw_result)
         elif isinstance(raw_result, dict):
             parsed = raw_result
         else:
-            raise RuntimeError("Unexpected sync banks response type.")
+            raise RuntimeError("Unexpected sync provider products response type.")
         if not isinstance(parsed, dict):
-            raise RuntimeError("Unexpected sync banks response shape.")
+            raise RuntimeError("Unexpected sync provider products response shape.")
         return parsed
+
+    async def list_provider_products(
+        self, provider_code: str, *, current_only: bool = True
+    ) -> list[dict]:
+        rows = await self.call_sp(
+            "public.installment__provider_product_list",
+            provider_code,
+            current_only,
+            cursor=True,
+            module_code="MYSPACE",
+        )
+        return [dict(row) for row in rows]
+
+    async def sync_banks_from_products(self, *, provider_code: str, products: list[dict]) -> dict:
+        """Deprecated: use sync_provider_products."""
+        result = await self.sync_provider_products(provider_code=provider_code, products=products)
+        return {
+            "inserted": result.get("inserted", 0),
+            "updated": result.get("unchanged", 0),
+            "bank_ids": result.get("ids", []),
+        }

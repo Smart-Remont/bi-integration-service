@@ -25,7 +25,48 @@ CREATE_APPLICATION_RESPONSE = {
 SYNC_BANKS_RESPONSE = {
     "inserted": 3,
     "updated": 0,
-    "bank_ids": [68, 69, 70],
+    "bank_ids": [1, 2, 3],
+}
+
+SYNC_PRODUCTS_RESPONSE = {
+    "inserted": 3,
+    "closed": 0,
+    "unchanged": 0,
+    "ids": [1, 2, 3],
+}
+
+PROVIDER_PRODUCTS_LIST_RESPONSE = {
+    "items": [
+        {
+            "id": 1,
+            "provider_code": "FF",
+            "provider_product_id": "MECHTA_INST",
+            "period": 6,
+            "principal_min": 20000,
+            "principal_max": 200000,
+            "repayment_method": "INSTALLMENT",
+            "tier_index": 0,
+            "content_hash": "a1b2c3d4e5f6",
+            "valid_from": "2026-06-26T10:00:00+00:00",
+            "valid_to": None,
+            "created_at": "2026-06-26T10:00:00+00:00",
+        },
+        {
+            "id": 2,
+            "provider_code": "FF",
+            "provider_product_id": "MECHTA_INST",
+            "period": 12,
+            "principal_min": 20000,
+            "principal_max": 200000,
+            "repayment_method": "INSTALLMENT",
+            "tier_index": 0,
+            "content_hash": "b2c3d4e5f6a1",
+            "valid_from": "2026-06-26T10:00:00+00:00",
+            "valid_to": None,
+            "created_at": "2026-06-26T10:00:00+00:00",
+        },
+    ],
+    "total": 2,
 }
 
 FF_PRODUCTS_RESPONSE = {
@@ -140,13 +181,45 @@ CREATE_APPLICATION_RESPONSES = {
 
 SYNC_BANKS_RESPONSES = {
     200: {
-        "description": "Результат upsert в bank_tab",
+        "description": "[Deprecated] Обёртка над sync-products",
         "content": {
             "application/json": {
                 "examples": {
                     "first_sync": {
                         "summary": "Первый sync (3 MECHTA продукта)",
                         "value": SYNC_BANKS_RESPONSE,
+                    },
+                },
+            },
+        },
+    },
+}
+
+SYNC_PRODUCTS_RESPONSES = {
+    200: {
+        "description": "Результат append-only sync в installment_provider_product_tab",
+        "content": {
+            "application/json": {
+                "examples": {
+                    "first_sync": {
+                        "summary": "Первый sync (3 exploded rows)",
+                        "value": SYNC_PRODUCTS_RESPONSE,
+                    },
+                },
+            },
+        },
+    },
+}
+
+PROVIDER_PRODUCTS_RESPONSES = {
+    200: {
+        "description": "Актуальные строки каталога провайдера",
+        "content": {
+            "application/json": {
+                "examples": {
+                    "ff_current": {
+                        "summary": "FF — текущие продукты",
+                        "value": PROVIDER_PRODUCTS_LIST_RESPONSE,
                     },
                 },
             },

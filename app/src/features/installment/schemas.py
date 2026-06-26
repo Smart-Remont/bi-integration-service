@@ -10,7 +10,9 @@ from .openapi_examples import (
     CREATE_APPLICATION_REQUEST,
     CREATE_APPLICATION_RESPONSE,
     FF_PRODUCTS_RESPONSE,
+    PROVIDER_PRODUCTS_LIST_RESPONSE,
     SYNC_BANKS_RESPONSE,
+    SYNC_PRODUCTS_RESPONSE,
     WEBHOOK_ACK_RESPONSE,
     WEBHOOK_APPROVED,
     WEBHOOK_ISSUED,
@@ -34,7 +36,23 @@ class FFProduct(BaseSchema):
     repayment: list[FFRepaymentCondition]
 
 
+class SyncProductsResponse(BaseSchema):
+    model_config = ConfigDict(
+        from_attributes=True,
+        validate_by_alias=True,
+        validate_by_name=True,
+        json_schema_extra={"examples": [SYNC_PRODUCTS_RESPONSE]},
+    )
+
+    inserted: int
+    closed: int
+    unchanged: int
+    ids: list[int]
+
+
 class SyncBanksResponse(BaseSchema):
+    """Deprecated: use SyncProductsResponse via POST /sync-products."""
+
     model_config = ConfigDict(
         from_attributes=True,
         validate_by_alias=True,
@@ -45,6 +63,39 @@ class SyncBanksResponse(BaseSchema):
     inserted: int
     updated: int
     bank_ids: list[int]
+
+
+class ProviderProductResponse(BaseSchema):
+    model_config = ConfigDict(
+        from_attributes=True,
+        validate_by_alias=True,
+        validate_by_name=True,
+    )
+
+    id: int
+    provider_code: str
+    provider_product_id: str
+    period: int
+    principal_min: Decimal
+    principal_max: Decimal
+    repayment_method: str
+    tier_index: int
+    content_hash: str | None = None
+    valid_from: datetime
+    valid_to: datetime | None = None
+    created_at: datetime
+
+
+class ProviderProductListResponse(BaseSchema):
+    model_config = ConfigDict(
+        from_attributes=True,
+        validate_by_alias=True,
+        validate_by_name=True,
+        json_schema_extra={"examples": [PROVIDER_PRODUCTS_LIST_RESPONSE]},
+    )
+
+    items: list[ProviderProductResponse]
+    total: int
 
 
 class FFProductsResponse(BaseSchema):

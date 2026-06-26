@@ -14,7 +14,10 @@ from ..schemas import (
     CreateInstallmentApplicationResponse,
     FFProductsResponse,
     InstallmentApplicationResponse,
+    ProviderProductListResponse,
+    ProviderProductResponse,
     SyncBanksResponse,
+    SyncProductsResponse,
     WebhookAckResponse,
 )
 from .client import FFClient, FFClientError
@@ -69,14 +72,32 @@ class FFService(BaseService):
         logger.info("FF get_products success | payload_keys={keys}", keys=sorted(payload.keys()))
         return FFProductsResponse.model_validate(payload)
 
-    async def sync_banks(self) -> SyncBanksResponse:
+    async def sync_products(self) -> SyncProductsResponse:
         products_response = await self.get_products()
         products_payload = [product.model_dump(mode="json") for product in products_response.products]
-        result = await self.ff_repository.sync_banks_from_products(
+        result = await self.ff_repository.sync_provider_products(
             provider_code="FF",
             products=products_payload,
         )
-        return SyncBanksResponse.model_validate(result)
+        return SyncProductsResponse.model_validate(result)
+
+    async def sync_banks(self) -> SyncBanksResponse:
+        logger.warning("sync_banks is deprecated; use sync_products (POST /sync-products)")
+        products_result = await self.sync_products()
+        return SyncBanksResponse(
+            inserted=products_result.inserted,
+            updated=products_result.unchanged,
+            bank_ids=products_result.ids,
+        )
+
+    async def list_provider_products(
+        self, provider_code: str, *, current_only: bool = True
+    ) -> ProviderProductListResponse:
+        rows = await self.ff_repository.list_provider_products(
+            provider_code, current_only=current_only
+        )
+        items = [ProviderProductResponse.model_validate(row) for row in rows]
+        return ProviderProductListResponse(items=items, total=len(items))
 
     async def create_application(
         self,
