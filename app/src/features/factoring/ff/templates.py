@@ -38,6 +38,7 @@ async def fetch_template_bytes(path: str, office_public_url: str) -> bytes:
         office_public_url.rstrip("/"),
         "https://office.smartremont.kz",
         "https://devprod.smart-remont.kz",
+        "https://devoffice.smart-remont.kz",
     ]
     seen: set[str] = set()
     last_error = "template file was not found"
