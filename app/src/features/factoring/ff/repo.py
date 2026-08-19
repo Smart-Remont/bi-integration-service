@@ -282,6 +282,32 @@ class FactoringRepository(BaseRepository):
         )
         return bool(rows)
 
+    async def get_template_by_code(self, template_code: str) -> dict[str, Any] | None:
+        wanted = template_code.strip()
+        rows = await self.call_sp(
+            "public.template__read",
+            cursor=True,
+            module_code="MYSPACE",
+        )
+        for row in rows:
+            code = str(row.get("template_code") or "").strip()
+            if code == wanted:
+                return dict(row)
+        fallback_ids = {
+            "FF_FACTORING_APPLICATION": 43,
+            "FF_FACTORING_NOTIFICATION": 44,
+        }
+        template_id = fallback_ids.get(wanted)
+        if template_id is None:
+            return None
+        by_id = await self.call_sp(
+            "public.template__get",
+            template_id,
+            cursor=True,
+            module_code="MYSPACE",
+        )
+        return dict(by_id[0]) if by_id else None
+
     async def get_provider_webhook_credentials(
         self, code: str = PROVIDER_CODE
     ) -> FactoringWebhookCredential | None:
