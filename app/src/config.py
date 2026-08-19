@@ -39,6 +39,21 @@ class CORSConfig:
     allow_headers: List[str] = ["*"]
 
 
+class MyncaConfig:
+    """Client ЭЦП via existing MyNCA (same service as constructor ClientSignController)."""
+
+    base_url: str = os.getenv("MYNCA_BASE_URL", "https://nca.smartremont.kz/api")
+    token: str = os.getenv("MYNCA_TOKEN", "")
+    office_public_url: str = os.getenv(
+        "OFFICE_PUBLIC_URL",
+        "https://office.smartremont.kz",
+    )
+    public_base_url: str = os.getenv(
+        "PUBLIC_BASE_URL",
+        "https://devintegration.smart-remont.kz",
+    )
+
+
 class AppConfig:
     env: str = os.getenv("APP_ENV", "stage")
 
@@ -47,4 +62,5 @@ cors_config = CORSConfig()
 big_integration_auth_config = BigIntegrationAuthConfig()
 installment_auth_config = InstallmentAuthConfig()
 factoring_auth_config = FactoringAuthConfig()
+mynca_config = MyncaConfig()
 app_config = AppConfig()

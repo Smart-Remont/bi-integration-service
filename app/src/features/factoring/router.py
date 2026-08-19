@@ -1,6 +1,7 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Path, Request, status
+from fastapi import APIRouter, Body, Path, Query, Request, status
+from fastapi.responses import Response
 from src.routers.config import api_prefix_config
 
 from .auth import FactoringBasicAuthDep
@@ -20,6 +21,9 @@ from .schemas import (
     FactoringApplicationListResponse,
     FactoringApplicationResponse,
     FactoringWebhookPayload,
+    PrepareFactoringDocumentsRequest,
+    PrepareFactoringDocumentsResponse,
+    SubmitFactoringApplicationRequest,
     WebhookAckResponse,
 )
 
@@ -60,6 +64,71 @@ async def create_application(
     service: FactoringServiceDep,
 ) -> CreateFactoringApplicationResponse:
     return await service.create_application(request)
+
+
+@router.post(
+    "/applications/prepare",
+    response_model=PrepareFactoringDocumentsResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Подготовить печатные формы и отправить клиенту на ЭЦП",
+)
+async def prepare_documents(
+    _: FactoringBasicAuthDep,
+    request: PrepareFactoringDocumentsRequest,
+    service: FactoringServiceDep,
+) -> PrepareFactoringDocumentsResponse:
+    return await service.prepare_documents(request)
+
+
+@router.post(
+    "/applications/{application_id}/refresh-sign",
+    response_model=PrepareFactoringDocumentsResponse,
+    summary="Проверить статусы ЭЦП печатных форм",
+)
+async def refresh_sign_status(
+    _: FactoringBasicAuthDep,
+    application_id: Annotated[int, Path(examples=[1])],
+    service: FactoringServiceDep,
+) -> PrepareFactoringDocumentsResponse:
+    return await service.refresh_sign_status(application_id)
+
+
+@router.post(
+    "/applications/{application_id}/submit",
+    response_model=CreateFactoringApplicationResponse,
+    summary="Отправить подписанную заявку в банк",
+    responses=CREATE_APPLICATION_RESPONSES,
+)
+async def submit_application(
+    _: FactoringBasicAuthDep,
+    application_id: Annotated[int, Path(examples=[1])],
+    request: SubmitFactoringApplicationRequest,
+    service: FactoringServiceDep,
+) -> CreateFactoringApplicationResponse:
+    return await service.submit_application(application_id, request)
+
+
+@router.get(
+    "/print-forms/{application_id}/{name}",
+    summary="Публичный PDF печатной формы (для банка после ЭЦП)",
+)
+async def download_print_form(
+    application_id: int,
+    name: str,
+    service: FactoringServiceDep,
+    t: Annotated[str, Query(description="file_token")],
+) -> Response:
+    pdf = await service.get_print_form_file(application_id, name, t)
+    return Response(content=pdf, media_type="application/pdf")
+
+
+@router.post(
+    "/sign-callback",
+    response_model=WebhookAckResponse,
+    summary="Callback MyNCA после подписи (no-op, статус проверяем poll)",
+)
+async def sign_callback() -> WebhookAckResponse:
+    return WebhookAckResponse(ok=True)
 
 
 @router.get(

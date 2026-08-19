@@ -27,6 +27,44 @@ class CreditGoodItem(BaseSchema):
     category: str | None = None
 
 
+class PrepareFactoringDocumentsRequest(BaseSchema):
+    client_request_id: int = Field(examples=[2916069])
+    iin: str = Field(examples=["891026301046"])
+    mobile_phone: str = Field(examples=["+77066078118"])
+    principal: Decimal = Field(examples=[119890])
+    period: int = Field(examples=[12])
+    created_by: int = Field(examples=[42])
+    client_fio: str | None = Field(default=None, description="ФИО клиента для печатных форм")
+    branch_code: str = Field(default="200000")
+    product_id: str | None = None
+    prepayment_amount: Decimal | None = None
+    interest_rate: Decimal | None = None
+    credit_goods: list[CreditGoodItem] | None = None
+    is_knox: bool = False
+
+
+class FactoringSignDocument(BaseSchema):
+    name: str
+    title: str
+    sign_url: str | None = None
+    signed: bool = False
+    url: str | None = None
+
+
+class PrepareFactoringDocumentsResponse(BaseSchema):
+    id: int
+    credit_contract: str
+    status: str
+    provider_code: str
+    documents: list[FactoringSignDocument]
+
+
+class SubmitFactoringApplicationRequest(BaseSchema):
+    iin: str
+    mobile_phone: str
+    is_knox: bool = False
+
+
 class CreateFactoringApplicationRequest(BaseSchema):
     model_config = ConfigDict(
         from_attributes=True,
