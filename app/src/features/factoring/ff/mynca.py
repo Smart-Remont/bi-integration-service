@@ -12,6 +12,10 @@ class MyncaClientError(Exception):
         self.status_code = status_code
 
 
+_SIGNED_STATUSES = {"SUCCESS", "SIGNED", "COMPLETED", "DONE", "PROCESSED"}
+_SIGNED_SESSIONS = {"processed", "completed", "signed", "success"}
+
+
 class MyncaClient:
     """HTTP client for nca.smartremont.kz — same API as constructor MyNcaClient."""
 
@@ -85,16 +89,19 @@ class MyncaClient:
             raise MyncaClientError("MyNCA sign/create did not return sign_process_id.")
         return sign_url, sign_process_id
 
-    async def sign_status(self, sign_process_id: str) -> str:
+    async def sign_status(self, sign_process_id: str) -> dict[str, Any]:
         body = await self._request_json(
             "GET",
             f"/sign/{sign_process_id}/status",
         )
-        data = _unwrap_data(body)
-        raw = data.get("status")
-        if isinstance(raw, str) and raw.strip():
-            return raw.strip().upper()
-        return ""
+        return _unwrap_data(body)
+
+    def is_process_signed(self, payload: dict[str, Any]) -> bool:
+        if payload.get("is_signed") is True:
+            return True
+        status_value = str(payload.get("status") or "").strip().upper()
+        session = str(payload.get("sign_session_status") or "").strip().lower()
+        return status_value in _SIGNED_STATUSES or session in _SIGNED_SESSIONS
 
     async def sign_download_pdf(self, sign_process_id: str) -> bytes:
         return await self._request_bytes("GET", f"/sign/{sign_process_id}/download")
