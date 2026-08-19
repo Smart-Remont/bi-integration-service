@@ -34,7 +34,6 @@ from .repo import (
 from .templates import PRINT_FORM_SPECS, fetch_template_bytes
 
 VALID_WEBHOOK_STATUSES = {"REJECTED", "APPROVED", "ALTERNATIVE", "ISSUED", "PENDING", "IN_PROGRESS"}
-SIGNED_MYNCA_STATUSES = {"SUCCESS", "SIGNED", "COMPLETED", "DONE"}
 PRINT_FORMS_CACHE_DIR = Path(gettempdir()) / "factoring-print-forms"
 
 
@@ -744,11 +743,12 @@ class FactoringService(BaseService):
     ) -> dict[str, Any]:
         template = await self.repository.get_template_by_code(spec["template_code"])
         path = str((template or {}).get("template_path") or "").strip()
-        docx_bytes = await fetch_template_bytes(
-            path,
-            self.office_public_url,
-            spec["template_code"],
-        )
+        if not path:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Шаблон {spec['template_code']} не найден в template_tab (пустой template_path).",
+            )
+        docx_bytes = await fetch_template_bytes(path, self.office_public_url)
         filled = fill_docx_bytes(docx_bytes, placeholders)
         mynca = self._require_mynca()
         try:
@@ -828,7 +828,7 @@ class FactoringService(BaseService):
         if not sign_process_id:
             return False
         try:
-            status_value = await self._require_mynca().sign_status(sign_process_id)
+            payload = await self._require_mynca().sign_status(sign_process_id)
         except MyncaClientError as exc:
             logger.warning(
                 "MyNCA sign status failed | sign_process_id={id} error={error}",
@@ -836,7 +836,7 @@ class FactoringService(BaseService):
                 error=exc.detail,
             )
             return False
-        return status_value in SIGNED_MYNCA_STATUSES
+        return self._require_mynca().is_process_signed(payload)
 
     async def _poll_print_form_signatures(
         self,
