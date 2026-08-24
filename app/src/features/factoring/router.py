@@ -27,7 +27,7 @@ from .schemas import (
     WebhookAckResponse,
 )
 
-router = APIRouter(prefix=api_prefix_config.v1.factoring_ff, tags=["Factoring FF"])
+router = APIRouter(prefix=api_prefix_config.v1.factoring_ff, tags=["Factoring (Freedom Finance)"])
 
 
 @router.get(

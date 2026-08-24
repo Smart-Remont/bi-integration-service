@@ -11,7 +11,6 @@ from .openapi_examples import (
     CREATE_APPLICATION_RESPONSE,
     FF_PRODUCTS_RESPONSE,
     PROVIDER_PRODUCTS_LIST_RESPONSE,
-    SYNC_BANKS_RESPONSE,
     SYNC_PRODUCTS_RESPONSE,
     WEBHOOK_ACK_RESPONSE,
     WEBHOOK_APPROVED,
@@ -48,21 +47,6 @@ class SyncProductsResponse(BaseSchema):
     closed: int
     unchanged: int
     ids: list[int]
-
-
-class SyncBanksResponse(BaseSchema):
-    """Deprecated: use SyncProductsResponse via POST /sync-products."""
-
-    model_config = ConfigDict(
-        from_attributes=True,
-        validate_by_alias=True,
-        validate_by_name=True,
-        json_schema_extra={"examples": [SYNC_BANKS_RESPONSE]},
-    )
-
-    inserted: int
-    updated: int
-    bank_ids: list[int]
 
 
 class ProviderProductResponse(BaseSchema):

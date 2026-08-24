@@ -9,6 +9,25 @@ from src.routers import main_router
 
 from .config import cors_config
 
+OPENAPI_TAGS = [
+    {
+        "name": "Installment (Freedom Finance)",
+        "description": "Онлайн-рассрочка FF: каталог продуктов, заявки, webhook, apply к сделке.",
+    },
+    {
+        "name": "Factoring (Freedom Finance)",
+        "description": "Факторинг FF: заявки, печатные формы с ЭЦП (MyNCA), webhook.",
+    },
+    {
+        "name": "DDU Contractors",
+        "description": "Справочник подрядчиков ДДУ.",
+    },
+    {
+        "name": "Big Integration",
+        "description": "Legacy-замена Zend `IntegrationController`: Basic Auth, envelope `data/response/error`.",
+    },
+]
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -18,11 +37,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(
-    title="integrations-sr",
-    description="HTTP-слой над PostgreSQL stored functions: внутренний API `/api/v1` и legacy big integration.",
+    title="Smart Remont — Integrations",
+    description=(
+        "HTTP-слой над PostgreSQL stored functions: внутренний REST API `/api/v1` "
+        "(installment, factoring, ddu_contractors) и legacy big integration `/api/big_integration`."
+    ),
     version="0.1.0",
     lifespan=lifespan,
     redirect_slashes=False,
+    openapi_tags=OPENAPI_TAGS,
 )
 register_infrastructure_handlers(app)
 app.add_middleware(

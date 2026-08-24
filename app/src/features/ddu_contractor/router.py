@@ -3,9 +3,9 @@ from src.routers import api_prefix_config
 
 from .deps import DduContractorServiceDep
 
-router = APIRouter(prefix=api_prefix_config.v1.ddu_contractors, tags=["Ddu Contractor"])
+router = APIRouter(prefix=api_prefix_config.v1.ddu_contractors, tags=["DDU Contractors"])
 
 
-@router.get("/")
+@router.get("/", summary="Список подрядчиков ДДУ")
 async def list_ddu_contractors(ddu_service_contractor: DduContractorServiceDep):
     return await ddu_service_contractor.list_ddu_contractor()
