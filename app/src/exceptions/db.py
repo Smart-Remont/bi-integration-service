@@ -1,3 +1,4 @@
+import re
 from collections.abc import Generator
 from contextlib import contextmanager
 
@@ -18,8 +19,17 @@ from .infra import (
     DuplicateKeyError,
     ForeignKeyError,
     InfrastructureError,
+    StoredProcedureError,
     UnexpectedDatabaseError,
 )
+
+_PG_RAISE_MESSAGE_RE = re.compile(r"\{([^}]*)\}")
+
+
+def clean_postgres_raise_message(exc: Exception) -> str:
+    text = str(exc)
+    match = _PG_RAISE_MESSAGE_RE.search(text)
+    return match.group(1).strip() if match else text
 
 
 @contextmanager
@@ -46,4 +56,7 @@ def map_asyncpg_errors() -> Generator[None, None, None]:
         raise
 
     except PostgresError as e:
+        sqlstate = getattr(e, "sqlstate", None)
+        if sqlstate == "P0001" or _PG_RAISE_MESSAGE_RE.search(str(e)):
+            raise StoredProcedureError(clean_postgres_raise_message(e)) from e
         raise UnexpectedDatabaseError() from e

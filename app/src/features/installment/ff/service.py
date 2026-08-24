@@ -1,12 +1,15 @@
 import base64
 import binascii
+import re
 from datetime import UTC, datetime, timedelta
 from secrets import compare_digest
 from typing import Any
 
+from asyncpg.exceptions import PostgresError
 from bcrypt import checkpw
 from fastapi import HTTPException, status
 from loguru import logger
+from src.exceptions import StoredProcedureError
 from src.service import BaseService
 
 from ..schemas import (
@@ -26,6 +29,7 @@ from ..schemas import (
 from .client import FFClient, FFClientError
 from .repo import FFProvider, FFRepository, FFWebhookCredential
 
+_PG_RAISE_MESSAGE_RE = re.compile(r"\{([^}]*)\}")
 VALID_FF_WEBHOOK_STATUSES = {"REJECTED", "APPROVED", "ALTERNATIVE", "ISSUED"}
 
 
@@ -297,6 +301,15 @@ class FFService(BaseService):
                 detail=f"Application id={application_id} was not found.",
             )
 
+        if (
+            application.client_request_credit_detail_id is None
+            and application.status != "ISSUED"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Заявку можно применить к сделке только после выдачи (ISSUED)",
+            )
+
         await self._log_event(
             "MANUAL_APPLY_STARTED",
             installment_id=application_id,
@@ -313,17 +326,37 @@ class FFService(BaseService):
                 application_id=application_id,
                 created_by=created_by,
             )
-        except Exception as exc:
+        except HTTPException:
+            raise
+        except StoredProcedureError as exc:
             await self._log_event(
                 "MANUAL_APPLY_FAILED",
                 installment_id=application_id,
                 source="INSTALLMENT",
                 payload={
                     "created_by": created_by,
-                    "error": self._extract_error_message(exc),
+                    "error": exc.message,
                 },
             )
-            raise
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=exc.message,
+            ) from exc
+        except Exception as exc:
+            detail = self._extract_error_message(exc)
+            await self._log_event(
+                "MANUAL_APPLY_FAILED",
+                installment_id=application_id,
+                source="INSTALLMENT",
+                payload={
+                    "created_by": created_by,
+                    "error": detail,
+                },
+            )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=detail,
+            ) from exc
 
         await self._log_event(
             "MANUAL_APPLY",
@@ -937,6 +970,13 @@ class FFService(BaseService):
     def _extract_error_message(exc: Exception) -> str:
         if isinstance(exc, HTTPException):
             return str(exc.detail)
+        cause: BaseException | None = exc
+        while cause is not None:
+            if isinstance(cause, PostgresError):
+                text = str(cause)
+                match = _PG_RAISE_MESSAGE_RE.search(text)
+                return match.group(1) if match else text
+            cause = cause.__cause__
         return str(exc)
 
     @staticmethod

@@ -183,9 +183,9 @@ async def get_application(
 @router.post(
     "/applications/{application_id}/apply",
     response_model=ApplyInstallmentApplicationResponse,
-    summary="Применить одобренную заявку к сделке",
+    summary="Применить выданную заявку к сделке",
     description=(
-        "Создаёт запись в `client_request_credit_detail_tab` по заявке в статусе APPROVED или ISSUED "
+        "Создаёт запись в `client_request_credit_detail_tab` по заявке в статусе ISSUED "
         "и связывает её через `installment_application_tab.client_request_credit_detail_id`. "
         "Повторный вызов идемпотентен — возвращает уже созданный credit_detail_id."
     ),
