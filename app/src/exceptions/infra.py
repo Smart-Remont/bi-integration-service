@@ -5,6 +5,7 @@ __all__ = (
     "DuplicateKeyError",
     "ForeignKeyError",
     "InfrastructureError",
+    "StoredProcedureError",
     "UnexpectedDatabaseError",
 )
 
@@ -35,3 +36,11 @@ class DatabaseConfigurationError(InfrastructureError):
 
 class UnexpectedDatabaseError(InfrastructureError):
     """An unexpected database error occurred."""
+
+
+class StoredProcedureError(InfrastructureError):
+    """Business rule raised from PostgreSQL RAISE EXCEPTION '{...}'."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)

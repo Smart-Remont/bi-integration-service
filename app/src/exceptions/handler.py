@@ -11,6 +11,7 @@ from .infra import (
     DuplicateKeyError,
     ForeignKeyError,
     InfrastructureError,
+    StoredProcedureError,
     UnexpectedDatabaseError,
 )
 
@@ -63,6 +64,16 @@ def _json_error(
 
 
 def register_infrastructure_handlers(app: FastAPI) -> None:
+    @app.exception_handler(StoredProcedureError)
+    async def stored_procedure_handler(
+        _request: Request,
+        exc: StoredProcedureError,
+    ) -> JSONResponse:
+        return _json_error(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=exc.message,
+        )
+
     for exc_type, response in _INFRASTRUCTURE_MESSAGES.items():
 
         @app.exception_handler(exc_type)

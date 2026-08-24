@@ -8,6 +8,7 @@ from .infra import (
     DuplicateKeyError,
     ForeignKeyError,
     InfrastructureError,
+    StoredProcedureError,
     UnexpectedDatabaseError,
 )
 
@@ -20,6 +21,7 @@ __all__ = (
     "ForeignKeyError",
     "InfrastructureError",
     "NotFoundError",
+    "StoredProcedureError",
     "UnexpectedDatabaseError",
     "map_asyncpg_errors",
     "register_infrastructure_handlers",

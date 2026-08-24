@@ -357,7 +357,7 @@ SQL-миграции: `sql/installment/` (порядок в комментари
 
 | Этап | Файл | Назначение |
 |------|------|------------|
-| 6 | `19_cr_credit_detail__insert_from_installment.sql` | Применить одобренную/выданную заявку к сделке |
+| 6 | `19_cr_credit_detail__insert_from_installment.sql` | Применить выданную (ISSUED) заявку к сделке |
 
 **Apply-to-deal (этап 6):**
 
@@ -367,7 +367,7 @@ Body: { "created_by": <employee_id> }
 → cr_credit_detail__insert_from_installment → client_request_credit_detail_tab
 ```
 
-Доступные статусы заявки: `APPROVED`, `ISSUED`. Повторный вызов идемпотентен (возвращает существующий `client_request_credit_detail_id`).
+Только статус `ISSUED` (выдача). Повторный вызов идемпотентен (возвращает существующий `client_request_credit_detail_id`).
 
 CRM прокси: `POST /crm/installment/applications/{id}/apply/` — кнопка «Применить к сделке» на вкладке «История».
 
