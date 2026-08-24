@@ -369,7 +369,9 @@ Body: { "created_by": <employee_id> }
 
 Только статус `ISSUED` (выдача). Повторный вызов идемпотентен (возвращает существующий `client_request_credit_detail_id`).
 
-CRM прокси: `POST /crm/installment/applications/{id}/apply/` — кнопка «Применить к сделке» на вкладке «История».
+При `ISSUED` webhook и poll сами вызывают apply (`AUTO_APPLY` / `AUTO_APPLY_FAILED`). Poll не откатывает `ISSUED`/`REJECTED` на `NEW` из песочницы FF.
+
+CRM прокси: `POST /crm/installment/applications/{id}/apply/` — кнопка «Применить к сделке» на вкладке «История» (fallback, если auto-apply не прошёл).
 
 Ручной apply на dev:
 

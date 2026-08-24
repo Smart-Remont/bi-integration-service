@@ -22,7 +22,6 @@ from ..schemas import (
     InstallmentApplicationResponse,
     ProviderProductListResponse,
     ProviderProductResponse,
-    SyncBanksResponse,
     SyncProductsResponse,
     WebhookAckResponse,
 )
@@ -99,15 +98,6 @@ class FFService(BaseService):
             },
         )
         return sync_response
-
-    async def sync_banks(self) -> SyncBanksResponse:
-        logger.warning("sync_banks is deprecated; use sync_products (POST /sync-products)")
-        products_result = await self.sync_products()
-        return SyncBanksResponse(
-            inserted=products_result.inserted,
-            updated=products_result.unchanged,
-            bank_ids=products_result.ids,
-        )
 
     async def list_provider_products(
         self, provider_code: str, *, current_only: bool = True
@@ -410,7 +400,10 @@ class FFService(BaseService):
             )
             raise
 
-        status_value = self._extract_poll_status(response_payload)
+        status_value = self._keep_terminal_poll_status(
+            application.status,
+            self._extract_poll_status(response_payload),
+        )
         approved_params = self._extract_poll_approved_params(response_payload)
         product_id = self._extract_string(response_payload, "product")
         loan_type = self._extract_string(response_payload, "loan_type")
@@ -814,6 +807,15 @@ class FFService(BaseService):
                 detail="Poll response must include status.",
             )
         return raw_status.strip().upper()
+
+    @staticmethod
+    def _keep_terminal_poll_status(current: str | None, polled: str) -> str:
+        """FF sandbox often stays NEW after a local ISSUED; do not regress terminal statuses."""
+        if current == "ISSUED" and polled not in {"ISSUED", "REJECTED"}:
+            return "ISSUED"
+        if current == "REJECTED" and polled not in {"REJECTED", "ISSUED"}:
+            return "REJECTED"
+        return polled
 
     @staticmethod
     def _extract_poll_approved_params(payload: dict[str, Any]) -> dict[str, Any] | None:

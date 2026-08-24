@@ -23,12 +23,6 @@ CREATE_APPLICATION_RESPONSE = {
     "provider_code": "FF",
 }
 
-SYNC_BANKS_RESPONSE = {
-    "inserted": 3,
-    "updated": 0,
-    "bank_ids": [1, 2, 3],
-}
-
 SYNC_PRODUCTS_RESPONSE = {
     "inserted": 3,
     "closed": 0,
@@ -177,22 +171,6 @@ CREATE_APPLICATION_RESPONSES = {
                     "in_progress": {
                         "summary": "Отправлено в FF",
                         "value": CREATE_APPLICATION_RESPONSE,
-                    },
-                },
-            },
-        },
-    },
-}
-
-SYNC_BANKS_RESPONSES = {
-    200: {
-        "description": "[Deprecated] Обёртка над sync-products",
-        "content": {
-            "application/json": {
-                "examples": {
-                    "first_sync": {
-                        "summary": "Первый sync (3 MECHTA продукта)",
-                        "value": SYNC_BANKS_RESPONSE,
                     },
                 },
             },

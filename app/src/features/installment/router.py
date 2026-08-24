@@ -11,7 +11,6 @@ from .openapi_examples import (
     CREATE_APPLICATION_RESPONSES,
     FF_PRODUCTS_RESPONSES,
     PROVIDER_PRODUCTS_RESPONSES,
-    SYNC_BANKS_RESPONSES,
     SYNC_PRODUCTS_RESPONSES,
     WEBHOOK_ACK_RESPONSES,
     WEBHOOK_APPROVED,
@@ -29,12 +28,11 @@ from .schemas import (
     InstallmentApplicationListResponse,
     InstallmentApplicationResponse,
     ProviderProductListResponse,
-    SyncBanksResponse,
     SyncProductsResponse,
     WebhookAckResponse,
 )
 
-router = APIRouter(prefix=api_prefix_config.v1.installment_ff, tags=["Installment FF"])
+router = APIRouter(prefix=api_prefix_config.v1.installment_ff, tags=["Installment (Freedom Finance)"])
 
 
 @router.get(
@@ -70,24 +68,6 @@ async def sync_products(
     ff_service: FFServiceDep,
 ) -> SyncProductsResponse:
     return await ff_service.sync_products()
-
-
-@router.post(
-    "/sync-banks",
-    response_model=SyncBanksResponse,
-    summary="[Deprecated] Sync FF products into bank_tab",
-    description=(
-        "**Deprecated.** Используйте `POST /sync-products`. "
-        "Обёртка для обратной совместимости — пишет в каталог, не в `bank_tab`."
-    ),
-    responses=SYNC_BANKS_RESPONSES,
-    deprecated=True,
-)
-async def sync_banks(
-    _: InstallmentBasicAuthDep,
-    ff_service: FFServiceDep,
-) -> SyncBanksResponse:
-    return await ff_service.sync_banks()
 
 
 @router.get(

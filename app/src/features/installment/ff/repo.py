@@ -429,12 +429,3 @@ class FFRepository(BaseRepository):
         if scalar_result is None:
             raise RuntimeError("Failed to apply installment application to deal.")
         return int(scalar_result)
-
-    async def sync_banks_from_products(self, *, provider_code: str, products: list[dict]) -> dict:
-        """Deprecated: use sync_provider_products."""
-        result = await self.sync_provider_products(provider_code=provider_code, products=products)
-        return {
-            "inserted": result.get("inserted", 0),
-            "updated": result.get("unchanged", 0),
-            "bank_ids": result.get("ids", []),
-        }
