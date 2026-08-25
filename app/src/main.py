@@ -12,19 +12,30 @@ from .config import cors_config
 OPENAPI_TAGS = [
     {
         "name": "Installment (Freedom Finance)",
-        "description": "Онлайн-рассрочка FF: каталог продуктов, заявки, webhook, apply к сделке.",
+        "description": (
+            "Онлайн-рассрочка Freedom Finance: каталог банковских продуктов, создание и опрос "
+            "заявок, входящий webhook о решении банка, автоматический и ручной apply к сделке."
+        ),
     },
     {
         "name": "Factoring (Freedom Finance)",
-        "description": "Факторинг FF: заявки, печатные формы с ЭЦП (MyNCA), webhook.",
-    },
-    {
-        "name": "DDU Contractors",
-        "description": "Справочник подрядчиков ДДУ.",
+        "description": (
+            "Факторинг Freedom Finance: заявки, подготовка печатных форм и электронная подпись "
+            "через MyNCA, входящий webhook о статусе."
+        ),
     },
     {
         "name": "Big Integration",
-        "description": "Legacy-замена Zend `IntegrationController`: Basic Auth, envelope `data/response/error`.",
+        "description": (
+            "Legacy-замена Zend `IntegrationController` для интеграций ДДУ. Basic Auth, тело "
+            "запроса без Pydantic-валидации (проверки в stored function), ответ в едином "
+            "envelope `{\"data\", \"response\", \"error\"}`. `data` — первая строка refcursor "
+            "как есть из PostgreSQL, ошибка (500) кладётся в `error.message`."
+        ),
+    },
+    {
+        "name": "Health",
+        "description": "Проверка живости сервиса (для liveness/readiness probe).",
     },
 ]
 
@@ -38,9 +49,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title="Smart Remont — Integrations",
+    summary="Тонкий HTTP-слой над PostgreSQL stored functions для внешних банковских интеграций",
     description=(
-        "HTTP-слой над PostgreSQL stored functions: внутренний REST API `/api/v1` "
-        "(installment, factoring, ddu_contractors) и legacy big integration `/api/big_integration`."
+        "## Два типа API\n\n"
+        "| Тип | Префикс | Auth | Формат ответа |\n"
+        "|---|---|---|---|\n"
+        "| Внутренний REST | `/api/v1/...` | Basic Auth | Pydantic-схемы, стандартные HTTP-коды |\n"
+        "| Big Integration (legacy) | `/api/big_integration/...` | Basic Auth | envelope `{data, response, error}` |\n\n"
+        "Вся бизнес-логика и валидация — в PostgreSQL stored functions (`asyncpg`, без ORM); "
+        "этот сервис — тонкий транспортный слой поверх них.\n\n"
+        "### Провайдеры\n\n"
+        "- **Freedom Finance** — онлайн-рассрочка (`installment`) и факторинг (`factoring`), "
+        "обе заявки хранятся в одной таблице `installment_application_tab` (`product_type`).\n"
+        "- **MyNCA** — электронная подпись документов для факторинга.\n"
     ),
     version="0.1.0",
     lifespan=lifespan,
@@ -57,7 +78,11 @@ app.add_middleware(
 )
 
 
-@app.get("/health")
+@app.get(
+    "/health",
+    tags=["Health"],
+    summary="Liveness/readiness probe",
+)
 async def health() -> dict[str, str]:
     return {"status": "ok"}
 

@@ -8,7 +8,15 @@ from .deps import RequestCreateV3ServiceDep
 router = APIRouter()
 
 
-@router.post("/request-create-v3")
+@router.post(
+    "/request-create-v3",
+    summary="Создать заявку ДДУ",
+    description=(
+        "Создаёт новую заявку (`sp: rest.ddu__create_request_v2`) и возвращает её состояние "
+        "(`rest.ddu__request_get`). Валидация полей — внутри stored function; при ошибке — "
+        "`error.message` из PostgreSQL."
+    ),
+)
 async def request_create_v3(
     request: Request,
     _: BigIntegrationBasicAuthDep,

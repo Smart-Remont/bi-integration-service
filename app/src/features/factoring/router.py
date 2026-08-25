@@ -50,8 +50,8 @@ async def list_applications(
     status_code=status.HTTP_201_CREATED,
     summary="Создать заявку на факторинг (FFC2)",
     description=(
-        "Создаёт запись в `factoring_application_tab`, вызывает банк "
-        "`apply-lead-factoring`. Нужны ИИН, телефон и подписанные `print_forms`."
+        "Создаёт запись в `installment_application_tab` (`product_type = FACTORING`), "
+        "вызывает банк `apply-lead-factoring`. Нужны ИИН, телефон и подписанные `print_forms`."
     ),
     responses=CREATE_APPLICATION_RESPONSES,
 )
@@ -141,7 +141,7 @@ async def get_application(
     _: FactoringBasicAuthDep,
     application_id: Annotated[
         int,
-        Path(description="ID в factoring_application_tab", examples=[1]),
+        Path(description="ID в installment_application_tab (product_type = FACTORING)", examples=[1]),
     ],
     service: FactoringServiceDep,
 ) -> FactoringApplicationResponse:
