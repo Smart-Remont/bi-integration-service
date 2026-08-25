@@ -8,7 +8,14 @@ from .deps import DduResidentAgreementStatusServiceDep
 router = APIRouter()
 
 
-@router.post("/ddu-resident-agreement-status")
+@router.post(
+    "/ddu-resident-agreement-status",
+    summary="Зафиксировать статус договора жильца ДДУ",
+    description=(
+        "Пишет запись в лог статусов договора (`sp: rest.ddu_resident_agreement__log_insert`). "
+        "Ответ без `data` (`null`) — только подтверждение записи или `error.message`."
+    ),
+)
 async def ddu_resident_agreement_status(
     request: Request,
     _: BigIntegrationBasicAuthDep,

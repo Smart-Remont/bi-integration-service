@@ -8,7 +8,14 @@ from .deps import DduFlatInfoMultipleServiceDep
 router = APIRouter()
 
 
-@router.post("/ddu-flat-info-multiple")
+@router.post(
+    "/ddu-flat-info-multiple",
+    summary="Информация по нескольким квартирам ДДУ",
+    description=(
+        "Принимает список `flat_guids` и возвращает информацию по каждой квартире "
+        "(`sp: rest.ddu_flat_info_multiple`). `flat_guids` обязателен и не может быть пустым."
+    ),
+)
 async def ddu_flat_info_multiple(
     request: Request,
     _: BigIntegrationBasicAuthDep,

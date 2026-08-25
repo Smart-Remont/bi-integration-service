@@ -8,7 +8,15 @@ from .deps import RequestEventV3ServiceDep
 router = APIRouter()
 
 
-@router.post("/request-event-v3")
+@router.post(
+    "/request-event-v3",
+    summary="Обновить статус заявки ДДУ (событие)",
+    description=(
+        "Принимает событие по существующей заявке (`sp: rest.ddu__request_event_v3`) и "
+        "возвращает актуальное состояние заявки (`rest.ddu__request_get`). Валидация полей — "
+        "внутри stored function; при ошибке — `error.message` из PostgreSQL."
+    ),
+)
 async def request_event_v3(
     request: Request,
     _: BigIntegrationBasicAuthDep,
