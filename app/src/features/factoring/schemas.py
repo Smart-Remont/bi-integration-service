@@ -185,6 +185,14 @@ class CessionBatchResult(BaseSchema):
     applications: list[CessionApplicationItem]
     sent: bool
     bank_message: str | None = None
+    sign_process_id: str | None = Field(
+        default=None,
+        description="MyNCA sign_process_id (cms/sign-save) для подписи договора цессии.",
+    )
+    sign_group_id: str | None = Field(
+        default=None,
+        description="MyNCA group_id (cms/sign-save) — та же группа, что и sign_process_id.",
+    )
 
 
 class SendCessionResponse(BaseSchema):

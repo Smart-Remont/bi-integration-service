@@ -153,6 +153,47 @@ class MyncaClient:
         except Exception as exc:  # noqa: BLE001
             raise MyncaClientError("MyNCA cms/sign returned invalid CMS.") from exc
 
+    async def cms_sign_save(
+        self,
+        *,
+        data: bytes,
+        key_b64: str,
+        password: str,
+        key_alias: str | None = None,
+        detached: bool = True,
+        with_tsp: bool = False,
+        file_name: str | None = None,
+        ext_id: int | None = None,
+        group_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Same as cms_sign, but persisted server-side (MyNCA sign_process_tab):
+        returns sign_process_id/group_id for traceability. Does NOT return the
+        raw CMS bytes — fetch those separately via download_cms()."""
+        payload: dict[str, Any] = {
+            "data": _b64(data),
+            "signer": {"key": key_b64, "password": password},
+            "detached": detached,
+            "withTsp": with_tsp,
+        }
+        if key_alias:
+            payload["signer"]["keyAlias"] = key_alias
+        if file_name:
+            payload["file_name"] = file_name
+        if ext_id is not None:
+            payload["ext_id"] = ext_id
+        if group_id:
+            payload["group_id"] = group_id
+        body = await self._request_json("POST", "/cms/sign-save", json=payload)
+        sign_process_id = body.get("sign_process_id")
+        if not isinstance(sign_process_id, str) or not sign_process_id:
+            raise MyncaClientError("MyNCA cms/sign-save did not return sign_process_id.")
+        return body
+
+    async def download_cms(self, sign_process_id: str) -> bytes:
+        """Fetches the raw CMS (PKCS#7) blob for a sign_process_id created via
+        cms/sign-save."""
+        return await self._request_bytes("GET", f"/sign/{sign_process_id}/download-cms")
+
     async def _request_json(
         self,
         method: str,

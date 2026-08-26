@@ -445,8 +445,22 @@ class FactoringRepository(BaseRepository):
             for row in rows
         ]
 
-    async def mark_cession_sent(self, application_ids: list[int], contract_number: str) -> int:
-        payload = {"application_ids": application_ids, "contract_number": contract_number}
+    async def mark_cession_sent(
+        self,
+        application_ids: list[int],
+        contract_number: str,
+        *,
+        sign_process_id: str | None = None,
+        sign_group_id: str | None = None,
+    ) -> int:
+        payload: dict[str, Any] = {
+            "application_ids": application_ids,
+            "contract_number": contract_number,
+        }
+        if sign_process_id is not None:
+            payload["sign_process_id"] = sign_process_id
+        if sign_group_id is not None:
+            payload["sign_group_id"] = sign_group_id
         result = scalar_from_sp_rows(
             await self.call_sp(
                 "public.factoring__cession_mark_sent",
