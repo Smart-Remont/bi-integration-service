@@ -677,12 +677,17 @@ class FactoringService(BaseService):
             public_key_b64 = certificate.get("pubkey")
             if not isinstance(public_key_b64, str) or not public_key_b64:
                 raise MyncaClientError("MyNCA pkcs12/info returned no pubkey.")
-            cms_bytes = await mynca.cms_sign(
+            sign_save_result = await mynca.cms_sign_save(
                 data=pdf_bytes,
                 key_b64=key_b64,
                 password=password,
                 detached=True,
+                file_name=f"cession-{contract_number}.pdf",
+                ext_id=company_items[0].id,
             )
+            sign_process_id = sign_save_result["sign_process_id"]
+            sign_group_id = sign_save_result.get("group_id")
+            cms_bytes = await mynca.download_cms(sign_process_id)
         except MyncaClientError as exc:
             await self._log_event(
                 "CESSION_SIGN_FAILED",
@@ -726,6 +731,8 @@ class FactoringService(BaseService):
                 "signer_serial": certificate.get("serialNumber"),
                 "document_bytes": len(pdf_bytes),
                 "digital_signature_bytes": len(cms_bytes),
+                "sign_process_id": sign_process_id,
+                "sign_group_id": sign_group_id,
                 "bank_payload": bank_payload,
             },
         )
@@ -773,6 +780,8 @@ class FactoringService(BaseService):
         await self.repository.mark_cession_sent(
             [item.id for item in company_items],
             contract_number,
+            sign_process_id=sign_process_id,
+            sign_group_id=sign_group_id,
         )
         await self._log_event(
             "CESSION_SENT",
@@ -783,6 +792,8 @@ class FactoringService(BaseService):
                 "issue_date": issue_date.isoformat(),
                 "company_id": company_id,
                 "contract_number": contract_number,
+                "sign_process_id": sign_process_id,
+                "sign_group_id": sign_group_id,
                 "response": bank_response,
                 "application_ids": [item.id for item in company_items],
             },
@@ -796,6 +807,8 @@ class FactoringService(BaseService):
             applications=response_items,
             sent=True,
             bank_message=str(bank_response.get("message") or ""),
+            sign_process_id=sign_process_id,
+            sign_group_id=sign_group_id,
         )
 
     @staticmethod
