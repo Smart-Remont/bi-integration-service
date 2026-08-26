@@ -305,6 +305,7 @@ class FactoringService(BaseService):
             interest_rate=request.interest_rate,
             print_forms=print_forms,
             credit_goods=credit_goods,
+            request_payload={"iin": iin, "mobile_phone": phone},
             success_url=success_url,
             failure_url=failure_url,
             hook_url=hook_url,
@@ -369,8 +370,18 @@ class FactoringService(BaseService):
                 detail="Клиент ещё не подписал: " + ", ".join(unsigned),
             )
 
+        # Заявка на факторинг может быть оформлена не на владельца сделки, а на
+        # другого человека (созаёмщик/иное лицо). Поэтому источник контактов —
+        # сама заявка (request_payload, сохранённый на prepare с тем ИИН/телефоном,
+        # на которые готовились и подписывались документы), а не client_request_tab
+        # владельца сделки — иначе можно подставить данные не того человека.
         iin = self._normalize_iin(request.iin)
         phone = self._normalize_phone(request.mobile_phone)
+        stored_contacts = application.request_payload or {}
+        if iin is None:
+            iin = self._normalize_iin(stored_contacts.get("iin"))
+        if phone is None:
+            phone = self._normalize_phone(stored_contacts.get("mobile_phone"))
         if iin is None or phone is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -1250,7 +1261,7 @@ class FactoringService(BaseService):
 
     @staticmethod
     def _normalize_iin(iin: str | None) -> str | None:
-        if iin is None:
+        if not isinstance(iin, str):
             return None
         normalized = "".join(symbol for symbol in iin if symbol.isdigit())
         if len(normalized) != 12:
@@ -1259,7 +1270,7 @@ class FactoringService(BaseService):
 
     @staticmethod
     def _normalize_phone(raw_phone: str | None) -> str | None:
-        if raw_phone is None:
+        if not isinstance(raw_phone, str):
             return None
         digits = "".join(symbol for symbol in raw_phone if symbol.isdigit())
         if digits.startswith("8") and len(digits) == 11:
