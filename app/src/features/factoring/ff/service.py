@@ -646,7 +646,9 @@ class FactoringService(BaseService):
         except HTTPException as exc:
             await self._log_event(
                 "CESSION_SIGN_FAILED",
+                factoring_id=company_items[0].id if company_items else None,
                 source="MYNCA",
+                committed=True,
                 payload={
                     "issue_date": issue_date.isoformat(),
                     "company_id": company_id,
@@ -684,7 +686,9 @@ class FactoringService(BaseService):
         except MyncaClientError as exc:
             await self._log_event(
                 "CESSION_SIGN_FAILED",
+                factoring_id=company_items[0].id,
                 source="MYNCA",
+                committed=True,
                 payload={
                     "issue_date": issue_date.isoformat(),
                     "company_id": company_id,
@@ -703,16 +707,26 @@ class FactoringService(BaseService):
             "payment_amount": str(payment_amount),
             "public_key": public_key_b64,
         }
+        subject = certificate.get("subject") if isinstance(certificate.get("subject"), dict) else {}
         await self._log_event(
             "CESSION_REQUEST",
+            factoring_id=company_items[0].id,
             source="FF_FACTORING",
+            committed=True,
             payload={
                 "issue_date": issue_date.isoformat(),
+                "signing_date": signing_date.isoformat(),
                 "company_id": company_id,
                 "partner": partner,
                 "contract_number": contract_number,
                 "payment_amount": str(payment_amount),
                 "application_ids": [item.id for item in company_items],
+                "signer_cn": subject.get("commonName"),
+                "signer_iin": subject.get("iin"),
+                "signer_serial": certificate.get("serialNumber"),
+                "document_bytes": len(pdf_bytes),
+                "digital_signature_bytes": len(cms_bytes),
+                "bank_payload": bank_payload,
             },
         )
 
@@ -743,11 +757,14 @@ class FactoringService(BaseService):
         except FactoringClientError as exc:
             await self._log_event(
                 "CESSION_FAILED",
+                factoring_id=company_items[0].id,
                 source="FF_FACTORING",
+                committed=True,
                 payload={
                     "issue_date": issue_date.isoformat(),
                     "company_id": company_id,
                     "contract_number": contract_number,
+                    "http_status": exc.status_code,
                     "error": exc.detail,
                 },
             )
@@ -759,7 +776,9 @@ class FactoringService(BaseService):
         )
         await self._log_event(
             "CESSION_SENT",
+            factoring_id=company_items[0].id,
             source="FF_FACTORING",
+            committed=True,
             payload={
                 "issue_date": issue_date.isoformat(),
                 "company_id": company_id,
@@ -1261,9 +1280,15 @@ class FactoringService(BaseService):
         factoring_id: int | None = None,
         source: str,
         payload: dict[str, Any],
+        committed: bool = False,
     ) -> None:
         try:
-            await self.repository.insert_event_log(
+            writer = (
+                self.repository.insert_event_log_committed
+                if committed
+                else self.repository.insert_event_log
+            )
+            await writer(
                 factoring_id=factoring_id,
                 event_type=event_type,
                 payload=payload,
