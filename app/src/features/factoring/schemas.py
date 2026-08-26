@@ -60,8 +60,6 @@ class PrepareFactoringDocumentsResponse(BaseSchema):
 
 
 class SubmitFactoringApplicationRequest(BaseSchema):
-    iin: str = ""
-    mobile_phone: str = ""
     is_knox: bool = False
 
 

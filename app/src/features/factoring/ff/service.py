@@ -370,22 +370,21 @@ class FactoringService(BaseService):
                 detail="Клиент ещё не подписал: " + ", ".join(unsigned),
             )
 
-        # Заявка на факторинг может быть оформлена не на владельца сделки, а на
-        # другого человека (созаёмщик/иное лицо). Поэтому источник контактов —
-        # сама заявка (request_payload, сохранённый на prepare с тем ИИН/телефоном,
-        # на которые готовились и подписывались документы), а не client_request_tab
-        # владельца сделки — иначе можно подставить данные не того человека.
-        iin = self._normalize_iin(request.iin)
-        phone = self._normalize_phone(request.mobile_phone)
+        # Заявку на факторинг могут оформить не на владельца сделки, а на другого
+        # человека — поэтому контакты берём строго из самой заявки (request_payload,
+        # сохранённый на prepare с тем ИИН/телефоном, на которые готовились и
+        # подписывались документы). Тело запроса игнорируем: значение из формы
+        # могло не совпасть с заявителем и тихо подменить контакты в банке.
         stored_contacts = application.request_payload or {}
-        if iin is None:
-            iin = self._normalize_iin(stored_contacts.get("iin"))
-        if phone is None:
-            phone = self._normalize_phone(stored_contacts.get("mobile_phone"))
+        iin = self._normalize_iin(stored_contacts.get("iin"))
+        phone = self._normalize_phone(stored_contacts.get("mobile_phone"))
         if iin is None or phone is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Invalid IIN or mobile_phone.",
+                detail=(
+                    "У заявки нет сохранённых ИИН/телефона (request_payload). "
+                    "Подготовьте документы заново (prepare), чтобы контакты сохранились."
+                ),
             )
 
         provider = await self._require_provider()
