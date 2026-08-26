@@ -254,6 +254,29 @@ class FactoringRepository(BaseRepository):
             )
         )
 
+    async def insert_event_log_committed(
+        self,
+        *,
+        factoring_id: int | None,
+        event_type: str,
+        payload: dict[str, Any],
+        source: str,
+    ) -> None:
+        """Write audit on a separate connection so a later HTTP 422 rollback
+        does not erase CESSION_REQUEST / bank error details."""
+        from src.database.pool import get_db_pool
+
+        pool = await get_db_pool()
+        async with pool.acquire() as connection:
+            other = FactoringRepository(connection=connection)
+            async with connection.transaction():
+                await other.insert_event_log(
+                    factoring_id=factoring_id,
+                    event_type=event_type,
+                    payload=payload,
+                    source=source,
+                )
+
     def _row_to_application(self, row: dict[str, Any]) -> FactoringApplicationResponse:
         payload = dict(row)
         for key in ("approved_params", "print_forms", "credit_goods"):
