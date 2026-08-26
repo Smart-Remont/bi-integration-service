@@ -154,6 +154,44 @@ class FactoringApplicationListResponse(BaseSchema):
     total: int
 
 
+class SendCessionRequest(BaseSchema):
+    issue_date: str | None = Field(
+        default=None,
+        description="YYYY-MM-DD. По умолчанию — сегодня. Собирает ISSUED/REVERSED выдачи за эту дату.",
+        examples=["2026-08-26"],
+    )
+    dry_run: bool = Field(
+        default=False,
+        description="Если true — считает сумму и список заявок, но не подписывает и не отправляет в банк.",
+    )
+
+
+class CessionApplicationItem(BaseSchema):
+    id: int
+    uuid: str | None = None
+    credit_contract: str
+    principal: Decimal
+    status: str
+
+
+class CessionBatchResult(BaseSchema):
+    company_id: int | None = None
+    partner: str | None = Field(
+        default=None,
+        description="Партнёр банка для этого юрлица. null — юрлицо не смаппено на partner, батч не отправлен.",
+    )
+    contract_number: str | None = None
+    payment_amount: Decimal
+    applications: list[CessionApplicationItem]
+    sent: bool
+    bank_message: str | None = None
+
+
+class SendCessionResponse(BaseSchema):
+    issue_date: str
+    batches: list[CessionBatchResult]
+
+
 class FactoringWebhookPayload(BaseSchema):
     model_config = ConfigDict(extra="allow")
 

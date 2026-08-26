@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -44,6 +44,16 @@ class FactoringWebhookApplication:
     id: int
     status: str
     approved_params: dict[str, Any] | None
+
+
+@dataclass(slots=True, frozen=True)
+class CessionBatchItem:
+    id: int
+    uuid: str | None
+    credit_contract: str
+    principal: Decimal
+    status: str
+    company_id: int | None
 
 
 class FactoringRepository(BaseRepository):
@@ -355,6 +365,73 @@ class FactoringRepository(BaseRepository):
             status=row["status"],
             approved_params=approved_params if isinstance(approved_params, dict) else None,
         )
+
+    async def get_decrypted_company_key(
+        self,
+        company_key_store_id: int,
+        master_key: str,
+    ) -> tuple[bytes, str]:
+        """Decrypts a company EDS key from nca.company_key_store_tab (pgcrypto,
+        same DB). OUT-param function — must SELECT * FROM it to get flattened
+        columns (call_sp's generic `SELECT fn(...)` would return one composite
+        column instead)."""
+        row = await self.fetchrow(
+            "SELECT * FROM nca.company_key_store__get_decrypted($1, $2)",
+            company_key_store_id,
+            master_key,
+        )
+        if row is None:
+            raise RuntimeError(f"Company key {company_key_store_id} was not found.")
+        key_data = row["key_data"]
+        key_password = row["key_password"]
+        if not isinstance(key_data, bytes) or not key_data:
+            raise RuntimeError(f"Company key {company_key_store_id} decrypted empty.")
+        if not isinstance(key_password, str) or not key_password:
+            raise RuntimeError(f"Company key {company_key_store_id} password decrypted empty.")
+        return key_data, key_password
+
+    async def get_active_company_key_store_id(self, company_id: int) -> int | None:
+        """First active EDS key for a legal entity (nca.company_key_store_tab)."""
+        rows = await self.call_sp(
+            "nca.company_key_store__read_by_company",
+            company_id,
+            cursor=True,
+            module_code="MYSPACE",
+        )
+        for row in rows:
+            if row.get("is_active"):
+                return int(row["company_key_store_id"])
+        return None
+
+    async def list_cession_batch(self, issue_date: date) -> list[CessionBatchItem]:
+        rows = await self.call_sp(
+            "public.factoring__cession_batch_list",
+            issue_date,
+            cursor=True,
+            module_code="MYSPACE",
+        )
+        return [
+            CessionBatchItem(
+                id=row["id"],
+                uuid=row["uuid"],
+                credit_contract=row["credit_contract"],
+                principal=row["principal"],
+                status=row["status"],
+                company_id=row.get("company_id"),
+            )
+            for row in rows
+        ]
+
+    async def mark_cession_sent(self, application_ids: list[int], contract_number: str) -> int:
+        payload = {"application_ids": application_ids, "contract_number": contract_number}
+        result = scalar_from_sp_rows(
+            await self.call_sp(
+                "public.factoring__cession_mark_sent",
+                json.dumps(payload),
+                module_code="MYSPACE",
+            )
+        )
+        return int(result) if result is not None else 0
 
     async def update_application_from_webhook(
         self,

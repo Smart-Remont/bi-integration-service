@@ -23,6 +23,8 @@ from .schemas import (
     FactoringWebhookPayload,
     PrepareFactoringDocumentsRequest,
     PrepareFactoringDocumentsResponse,
+    SendCessionRequest,
+    SendCessionResponse,
     SubmitFactoringApplicationRequest,
     WebhookAckResponse,
 )
@@ -129,6 +131,30 @@ async def download_print_form(
 )
 async def sign_callback() -> WebhookAckResponse:
     return WebhookAckResponse(ok=True)
+
+
+@router.post(
+    "/applications/cession/send",
+    response_model=SendCessionResponse,
+    summary="Собрать выдачи за день и отправить банку договор цессии",
+    description=(
+        "Собирает FACTORING-заявки со статусом ISSUED/REVERSED за `issue_date` (по умолчанию "
+        "сегодня, Asia/Almaty), которые ещё не были в цессии, группирует по ТОО "
+        "(`client_request_tab.company_id`) и отправляет **отдельный** договор цессии на "
+        "каждое юрлицо (у каждого своя `config.partner_by_company_id` и свой ЭЦП в "
+        "`nca.company_key_store_tab`). Подписывает CMS через MyNCA. При успехе помечает "
+        "заявки `cession_sent_at`/`cession_contract_number`. Батчи без `partner` в мапе "
+        "возвращаются с `sent=false`. Пятница–воскресенье банк ждёт три отдельных запроса "
+        "в понедельник (по одному на каждый issue_date) — вызывающая сторона (cron) должна "
+        "вызвать этот эндпоинт трижды с разными `issue_date`."
+    ),
+)
+async def send_cession(
+    _: FactoringBasicAuthDep,
+    request: SendCessionRequest,
+    service: FactoringServiceDep,
+) -> SendCessionResponse:
+    return await service.send_daily_cession(request)
 
 
 @router.get(

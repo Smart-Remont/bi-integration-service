@@ -106,6 +106,53 @@ class MyncaClient:
     async def sign_download_pdf(self, sign_process_id: str) -> bytes:
         return await self._request_bytes("GET", f"/sign/{sign_process_id}/download")
 
+    async def pkcs12_info(
+        self,
+        *,
+        key_b64: str,
+        password: str,
+        key_alias: str | None = None,
+    ) -> dict[str, Any]:
+        """Reads certificate info (incl. `pubkey` / X.509 DER public key) from a PKCS#12 key."""
+        payload: dict[str, Any] = {"key": key_b64, "password": password}
+        if key_alias:
+            payload["keyAlias"] = key_alias
+        body = await self._request_json("POST", "/pkcs12/info", json=payload)
+        certificate = body.get("certificate")
+        if not isinstance(certificate, dict):
+            raise MyncaClientError("MyNCA pkcs12/info returned no certificate.")
+        return certificate
+
+    async def cms_sign(
+        self,
+        *,
+        data: bytes,
+        key_b64: str,
+        password: str,
+        key_alias: str | None = None,
+        detached: bool = True,
+        with_tsp: bool = False,
+    ) -> bytes:
+        """Signs raw bytes as CMS (PKCS#7). Returns the CMS blob (DER)."""
+        payload: dict[str, Any] = {
+            "data": _b64(data),
+            "signer": {"key": key_b64, "password": password},
+            "detached": detached,
+            "withTsp": with_tsp,
+        }
+        if key_alias:
+            payload["signer"]["keyAlias"] = key_alias
+        body = await self._request_json("POST", "/cms/sign", json=payload)
+        cms_b64 = _nested_str(body, "cms") or _nested_str(body, "data", "cms")
+        if not cms_b64:
+            raise MyncaClientError("MyNCA cms/sign returned no cms.")
+        try:
+            import base64
+
+            return base64.b64decode(cms_b64)
+        except Exception as exc:  # noqa: BLE001
+            raise MyncaClientError("MyNCA cms/sign returned invalid CMS.") from exc
+
     async def _request_json(
         self,
         method: str,

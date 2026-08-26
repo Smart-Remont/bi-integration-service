@@ -21,6 +21,7 @@ def get_factoring_service(connection: DatabaseConnectionDep) -> FactoringService
         app_env=app_config.env,
         office_public_url=mynca_config.office_public_url,
         public_base_url=mynca_config.public_base_url,
+        nca_master_key=mynca_config.nca_master_key,
     )
 
 
