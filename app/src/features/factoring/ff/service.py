@@ -273,6 +273,7 @@ class FactoringService(BaseService):
             principal=request.principal,
             period=request.period,
             credit_contract=credit_contract,
+            client_request_id=request.client_request_id,
         )
         print_forms: list[dict[str, Any]] = []
         for spec in PRINT_FORM_SPECS:
@@ -1070,9 +1071,11 @@ class FactoringService(BaseService):
         principal: Any,
         period: int,
         credit_contract: str,
+        client_request_id: int,
     ) -> dict[str, str]:
         amount = f"{principal:,.0f}".replace(",", " ")
-        created_at = datetime.now(UTC).strftime("%d.%m.%Y")
+        now = datetime.now(ALMATY_TZ)
+        created_at = now.strftime("%d.%m.%Y")
         return {
             "borrower_full_name": client_fio,
             "borrower_iin": iin,
@@ -1086,6 +1089,10 @@ class FactoringService(BaseService):
             "contract_number": credit_contract,
             "quantity": "1",
             "total_amount": amount,
+            "client_request_id": str(client_request_id),
+            "product_full_name": "Ремонт",
+            "day_of_month": str(now.day),
+            "jur_agreement_number": "",
         }
 
     async def _prepare_one_print_form(
