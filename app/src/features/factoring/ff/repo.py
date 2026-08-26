@@ -279,7 +279,7 @@ class FactoringRepository(BaseRepository):
 
     def _row_to_application(self, row: dict[str, Any]) -> FactoringApplicationResponse:
         payload = dict(row)
-        for key in ("approved_params", "print_forms", "credit_goods"):
+        for key in ("approved_params", "print_forms", "credit_goods", "request_payload"):
             if isinstance(payload.get(key), str):
                 payload[key] = json.loads(payload[key])
         return FactoringApplicationResponse.model_validate(payload)
@@ -306,14 +306,19 @@ class FactoringRepository(BaseRepository):
         )
         return [self._row_to_application(dict(row)) for row in rows]
 
-    async def client_request_exists(self, client_request_id: int) -> bool:
+    async def get_client_request_contacts(
+        self, client_request_id: int
+    ) -> dict[str, Any] | None:
         rows = await self.call_sp(
             "public.factoring__client_request_get_for_apply",
             client_request_id,
             cursor=True,
             module_code="MYSPACE",
         )
-        return bool(rows)
+        return dict(rows[0]) if rows else None
+
+    async def client_request_exists(self, client_request_id: int) -> bool:
+        return await self.get_client_request_contacts(client_request_id) is not None
 
     async def get_template_by_code(self, template_code: str) -> dict[str, Any] | None:
         wanted = template_code.strip()

@@ -60,8 +60,8 @@ class PrepareFactoringDocumentsResponse(BaseSchema):
 
 
 class SubmitFactoringApplicationRequest(BaseSchema):
-    iin: str
-    mobile_phone: str
+    iin: str = ""
+    mobile_phone: str = ""
     is_knox: bool = False
 
 
@@ -142,6 +142,7 @@ class FactoringApplicationResponse(BaseSchema):
     redirect_url: str | None = None
     print_forms: list[Any] | None = None
     credit_goods: list[Any] | None = None
+    request_payload: dict[str, Any] | None = None
     issued_at: datetime | None = None
     client_request_credit_detail_id: int | None = None
     created_by: int | None = None
