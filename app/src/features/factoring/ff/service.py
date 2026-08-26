@@ -1,10 +1,12 @@
 import base64
 import binascii
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from secrets import compare_digest, token_hex
 from tempfile import gettempdir
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from bcrypt import checkpw
 from fastapi import HTTPException, status
@@ -12,6 +14,8 @@ from loguru import logger
 from src.service import BaseService
 
 from ..schemas import (
+    CessionApplicationItem,
+    CessionBatchResult,
     CreateFactoringApplicationRequest,
     CreateFactoringApplicationResponse,
     FactoringApplicationResponse,
@@ -19,6 +23,8 @@ from ..schemas import (
     PrepareFactoringDocumentsRequest,
     PrepareFactoringDocumentsResponse,
     PrintFormItem,
+    SendCessionRequest,
+    SendCessionResponse,
     SubmitFactoringApplicationRequest,
     WebhookAckResponse,
 )
@@ -27,6 +33,7 @@ from .docx_fill import fill_docx_bytes
 from .mynca import MyncaClient, MyncaClientError
 from .repo import (
     PROVIDER_CODE,
+    CessionBatchItem,
     FactoringProvider,
     FactoringRepository,
     FactoringWebhookCredential,
@@ -35,6 +42,8 @@ from .templates import PRINT_FORM_SPECS, fetch_template_bytes
 
 VALID_WEBHOOK_STATUSES = {"REJECTED", "APPROVED", "ALTERNATIVE", "ISSUED", "PENDING", "IN_PROGRESS"}
 PRINT_FORMS_CACHE_DIR = Path(gettempdir()) / "factoring-print-forms"
+ALMATY_TZ = ZoneInfo("Asia/Almaty")
+CESSION_TEMPLATE_CODE = "FF_FACTORING_CESSION_AGREEMENT"
 
 
 class FactoringService(BaseService):
@@ -46,6 +55,7 @@ class FactoringService(BaseService):
         mynca: MyncaClient | None = None,
         office_public_url: str = "https://office.smartremont.kz",
         public_base_url: str = "https://devintegration.smart-remont.kz",
+        nca_master_key: str = "",
     ) -> None:
         self.repository = repository
         self.client = client
@@ -53,6 +63,7 @@ class FactoringService(BaseService):
         self.mynca = mynca
         self.office_public_url = office_public_url.rstrip("/")
         self.public_base_url = public_base_url.rstrip("/")
+        self.nca_master_key = nca_master_key
 
     async def create_application(
         self,
@@ -557,6 +568,317 @@ class FactoringService(BaseService):
             payload={"status": status_value, "raw": payload},
         )
         return WebhookAckResponse(ok=True)
+
+    async def send_daily_cession(self, request: SendCessionRequest) -> SendCessionResponse:
+        """One cession (assignment agreement) per legal entity (company_id from
+        client_request_tab), because each ТОО has its own bank `partner` and its
+        own EDS key (nca.company_key_store_tab). See
+        agent-memory/ff-factoring/03-bank-codes-sr.md."""
+        issue_date = self._parse_issue_date(request.issue_date)
+        items = await self.repository.list_cession_batch(issue_date)
+        if not items:
+            return SendCessionResponse(issue_date=issue_date.isoformat(), batches=[])
+
+        provider = await self._require_provider()
+        by_company: dict[int | None, list[CessionBatchItem]] = {}
+        for item in items:
+            by_company.setdefault(item.company_id, []).append(item)
+
+        batches = [
+            await self._send_cession_for_company(
+                provider=provider,
+                company_id=company_id,
+                company_items=company_items,
+                issue_date=issue_date,
+                dry_run=request.dry_run,
+            )
+            for company_id, company_items in by_company.items()
+        ]
+        return SendCessionResponse(issue_date=issue_date.isoformat(), batches=batches)
+
+    async def _send_cession_for_company(
+        self,
+        *,
+        provider: FactoringProvider,
+        company_id: int | None,
+        company_items: list[CessionBatchItem],
+        issue_date: date,
+        dry_run: bool,
+    ) -> CessionBatchResult:
+        payment_amount = sum((item.principal for item in company_items), Decimal("0"))
+        response_items = [
+            CessionApplicationItem(
+                id=item.id,
+                uuid=item.uuid,
+                credit_contract=item.credit_contract,
+                principal=item.principal,
+                status=item.status,
+            )
+            for item in company_items
+        ]
+
+        partner = self._resolve_partner_for_company(provider, company_id)
+        if partner is None:
+            return CessionBatchResult(
+                company_id=company_id,
+                partner=None,
+                payment_amount=payment_amount,
+                applications=response_items,
+                sent=False,
+                bank_message=(
+                    f"company_id={company_id}: нет partner в "
+                    "config.partner_by_company_id — цессия не отправлена."
+                ),
+            )
+
+        if dry_run:
+            return CessionBatchResult(
+                company_id=company_id,
+                partner=partner,
+                payment_amount=payment_amount,
+                applications=response_items,
+                sent=False,
+                bank_message="dry_run: not signed, not sent.",
+            )
+
+        try:
+            key_b64, password = await self._get_cession_signer_key(company_id)
+        except HTTPException as exc:
+            await self._log_event(
+                "CESSION_SIGN_FAILED",
+                source="MYNCA",
+                payload={
+                    "issue_date": issue_date.isoformat(),
+                    "company_id": company_id,
+                    "error": self._extract_error_message(exc),
+                },
+            )
+            raise
+
+        mynca = self._require_mynca()
+        mynca.require_configured()
+
+        contract_number = self._generate_cession_contract_number(issue_date, company_id)
+        signing_date = datetime.now(ALMATY_TZ).date()
+
+        pdf_bytes = await self._build_cession_document(
+            partner=partner,
+            contract_number=contract_number,
+            issue_date=issue_date,
+            signing_date=signing_date,
+            payment_amount=payment_amount,
+            count=len(company_items),
+        )
+
+        try:
+            certificate = await mynca.pkcs12_info(key_b64=key_b64, password=password)
+            public_key_b64 = certificate.get("pubkey")
+            if not isinstance(public_key_b64, str) or not public_key_b64:
+                raise MyncaClientError("MyNCA pkcs12/info returned no pubkey.")
+            cms_bytes = await mynca.cms_sign(
+                data=pdf_bytes,
+                key_b64=key_b64,
+                password=password,
+                detached=True,
+            )
+        except MyncaClientError as exc:
+            await self._log_event(
+                "CESSION_SIGN_FAILED",
+                source="MYNCA",
+                payload={
+                    "issue_date": issue_date.isoformat(),
+                    "company_id": company_id,
+                    "error": exc.detail,
+                },
+            )
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.detail) from exc
+
+        bank_payload = {
+            "partner": partner,
+            "document": base64.b64encode(pdf_bytes).decode("ascii"),
+            "contract_number": contract_number,
+            "signing_date": signing_date.isoformat(),
+            "issue_date": issue_date.isoformat(),
+            "digital_signature": base64.b64encode(cms_bytes).decode("ascii"),
+            "payment_amount": str(payment_amount),
+            "public_key": public_key_b64,
+        }
+        await self._log_event(
+            "CESSION_REQUEST",
+            source="FF_FACTORING",
+            payload={
+                "issue_date": issue_date.isoformat(),
+                "company_id": company_id,
+                "partner": partner,
+                "contract_number": contract_number,
+                "payment_amount": str(payment_amount),
+                "application_ids": [item.id for item in company_items],
+            },
+        )
+
+        cession_path = provider.config.get("cession_path")
+        if not isinstance(cession_path, str) or not cession_path.strip():
+            cession_path = "/ffc-api-public/custom/partner-document/assignment-agreement/"
+
+        try:
+            access_token = await self._ensure_valid_token(provider)
+            try:
+                bank_response = await self.client.send_cession(
+                    access_token=access_token,
+                    payload=bank_payload,
+                    cession_path=cession_path,
+                    **self._request_kwargs(provider),
+                )
+            except FactoringClientError as exc:
+                if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+                    access_token = await self._authenticate_and_store_token(provider)
+                    bank_response = await self.client.send_cession(
+                        access_token=access_token,
+                        payload=bank_payload,
+                        cession_path=cession_path,
+                        **self._request_kwargs(provider),
+                    )
+                else:
+                    raise
+        except FactoringClientError as exc:
+            await self._log_event(
+                "CESSION_FAILED",
+                source="FF_FACTORING",
+                payload={
+                    "issue_date": issue_date.isoformat(),
+                    "company_id": company_id,
+                    "contract_number": contract_number,
+                    "error": exc.detail,
+                },
+            )
+            raise self._map_client_error(exc) from exc
+
+        await self.repository.mark_cession_sent(
+            [item.id for item in company_items],
+            contract_number,
+        )
+        await self._log_event(
+            "CESSION_SENT",
+            source="FF_FACTORING",
+            payload={
+                "issue_date": issue_date.isoformat(),
+                "company_id": company_id,
+                "contract_number": contract_number,
+                "response": bank_response,
+                "application_ids": [item.id for item in company_items],
+            },
+        )
+
+        return CessionBatchResult(
+            company_id=company_id,
+            partner=partner,
+            contract_number=contract_number,
+            payment_amount=payment_amount,
+            applications=response_items,
+            sent=True,
+            bank_message=str(bank_response.get("message") or ""),
+        )
+
+    @staticmethod
+    def _resolve_partner_for_company(
+        provider: FactoringProvider, company_id: int | None
+    ) -> str | None:
+        mapping = provider.config.get("partner_by_company_id")
+        if isinstance(mapping, dict) and company_id is not None:
+            partner = mapping.get(str(company_id))
+            if isinstance(partner, str) and partner.strip():
+                return partner.strip()
+        # Fallback for single-entity setups without a mapping configured yet.
+        legacy_partner = provider.config.get("partner_id")
+        if isinstance(legacy_partner, str) and legacy_partner.strip() and not (
+            isinstance(mapping, dict) and mapping
+        ):
+            return legacy_partner.strip()
+        return None
+
+    async def _get_cession_signer_key(self, company_id: int | None) -> tuple[str, str]:
+        """Returns (key_b64, password) for the ТОО's EDS used to sign cession,
+        resolved from client_request_tab.company_id and decrypted on demand
+        from nca.company_key_store_tab — never stored in our own config/env."""
+        if not self.nca_master_key:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="NCA_MASTER_KEY is not configured (needed to decrypt company EDS key).",
+            )
+        if company_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Заявка без company_id (client_request_tab) — не знаем, чьим ключом подписывать.",
+            )
+        key_store_id = await self.repository.get_active_company_key_store_id(company_id)
+        if key_store_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=(
+                    f"Нет активного ключа ЭЦП в nca.company_key_store_tab для company_id={company_id}."
+                ),
+            )
+        key_data, password = await self.repository.get_decrypted_company_key(
+            key_store_id, self.nca_master_key
+        )
+        return base64.b64encode(key_data).decode("ascii"), password
+
+    @staticmethod
+    def _parse_issue_date(raw: str | None) -> date:
+        if raw is None or not raw.strip():
+            return datetime.now(ALMATY_TZ).date()
+        try:
+            return date.fromisoformat(raw.strip())
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="issue_date must be YYYY-MM-DD.",
+            ) from exc
+
+    @staticmethod
+    def _generate_cession_contract_number(issue_date: date, company_id: int | None) -> str:
+        # TODO: replace with a proper sequence once the bank confirms the exact
+        # numbering scheme (example in docs: ЦЕС-2025-001847). Company suffix
+        # keeps numbers unique when we send several batches (one per ТОО) for
+        # the same issue_date.
+        suffix = f"-{company_id}" if company_id is not None else ""
+        return f"ЦЕС-{issue_date.year}-{issue_date:%m%d}{suffix}-{token_hex(2).upper()}"
+
+    async def _build_cession_document(
+        self,
+        *,
+        partner: str,
+        contract_number: str,
+        issue_date: date,
+        signing_date: date,
+        payment_amount: Decimal,
+        count: int,
+    ) -> bytes:
+        template = await self.repository.get_template_by_code(CESSION_TEMPLATE_CODE)
+        path = str((template or {}).get("template_path") or "").strip()
+        if not path:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=(
+                    f"Шаблон {CESSION_TEMPLATE_CODE} не найден в template_tab. "
+                    "Нужно загрузить .docx договора цессии и добавить template_path."
+                ),
+            )
+        docx_bytes = await fetch_template_bytes(path, self.office_public_url)
+        amount_str = f"{payment_amount:,.0f}".replace(",", " ")
+        placeholders = {
+            "partner": partner,
+            "contract_number": contract_number,
+            "issue_date": issue_date.strftime("%d.%m.%Y"),
+            "signing_date": signing_date.strftime("%d.%m.%Y"),
+            "payment_amount": amount_str,
+            "applications_count": str(count),
+        }
+        filled = fill_docx_bytes(docx_bytes, placeholders)
+        try:
+            return await self._require_mynca().docx_to_pdf(filled)
+        except MyncaClientError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.detail) from exc
 
     async def _require_provider(self) -> FactoringProvider:
         provider = await self.repository.get_provider_by_code(PROVIDER_CODE)

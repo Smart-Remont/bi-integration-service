@@ -93,6 +93,24 @@ class FactoringClient:
             resolve_ip=resolve_ip,
         )
 
+    async def send_cession(
+        self,
+        base_url: str,
+        access_token: str,
+        payload: dict[str, Any],
+        *,
+        resolve_ip: str | None = None,
+        cession_path: str = "/ffc-api-public/custom/partner-document/assignment-agreement/",
+    ) -> dict[str, Any]:
+        return await self._request(
+            method="POST",
+            base_url=base_url,
+            path=cession_path,
+            json=payload,
+            headers=self._auth_header(access_token),
+            resolve_ip=resolve_ip,
+        )
+
     async def _request(
         self,
         method: str,
@@ -218,6 +236,10 @@ class FactoringClient:
         masked = dict(body)
         if "password" in masked:
             masked["password"] = "***"
+        for key in ("document", "digital_signature", "public_key"):
+            value = masked.get(key)
+            if isinstance(value, str) and len(value) > 40:
+                masked[key] = f"{value[:20]}...<{len(value)} chars>"
         return masked
 
     @staticmethod

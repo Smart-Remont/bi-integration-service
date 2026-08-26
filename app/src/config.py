@@ -52,6 +52,13 @@ class MyncaConfig:
         "PUBLIC_BASE_URL",
         "https://devintegration.smart-remont.kz",
     )
+    # Company EDS keys used to sign cession (assignment) documents live encrypted
+    # in nca.company_key_store_tab (same DB, managed by the `myspace` admin app —
+    # see myspace-backend/nca/). We decrypt them in Postgres via
+    # nca.company_key_store__get_decrypted(id, master_key) — same master key as
+    # myspace's NCA_MASTER_KEY env var. Which key to use is resolved from
+    # client_request_tab.company_id → nca.company_key_store__read_by_company.
+    nca_master_key: str = os.getenv("NCA_MASTER_KEY", "")
 
 
 class AppConfig:
