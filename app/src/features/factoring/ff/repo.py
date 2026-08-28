@@ -54,6 +54,8 @@ class CessionBatchItem:
     principal: Decimal
     status: str
     company_id: int | None
+    period: int | None = None
+    issued_at: datetime | None = None
 
 
 class FactoringRepository(BaseRepository):
@@ -320,6 +322,20 @@ class FactoringRepository(BaseRepository):
     async def client_request_exists(self, client_request_id: int) -> bool:
         return await self.get_client_request_contacts(client_request_id) is not None
 
+    async def get_client_request_company_id(self, client_request_id: int) -> int | None:
+        row = await self.fetchrow(
+            """
+            SELECT company_id
+            FROM client_request_tab
+            WHERE client_request_id = $1
+            LIMIT 1
+            """,
+            client_request_id,
+        )
+        if row is None or row["company_id"] is None:
+            return None
+        return int(row["company_id"])
+
     async def get_template_by_code(self, template_code: str) -> dict[str, Any] | None:
         wanted = template_code.strip()
         rows = await self.call_sp(
@@ -334,6 +350,7 @@ class FactoringRepository(BaseRepository):
         fallback_ids = {
             "FF_FACTORING_APPLICATION": 43,
             "FF_FACTORING_NOTIFICATION": 44,
+            "FF_FACTORING_CESSION": 46,
         }
         template_id = fallback_ids.get(wanted)
         if template_id is None:
@@ -431,6 +448,28 @@ class FactoringRepository(BaseRepository):
                 return int(row["company_key_store_id"])
         return None
 
+    async def get_cession_company(self, company_id: int) -> dict[str, Any] | None:
+        row = await self.fetchrow(
+            """
+            SELECT
+                c.company_name_official,
+                c.director_fio,
+                i.bank_account
+            FROM company_tab c
+            LEFT JOIN initiator_company_tab i ON i.company_id = c.company_id
+            WHERE c.company_id = $1
+            ORDER BY
+                CASE
+                    WHEN i.bank_account IS NOT NULL AND btrim(i.bank_account) <> '' THEN 0
+                    ELSE 1
+                END,
+                i.initiator_company_id DESC NULLS LAST
+            LIMIT 1
+            """,
+            company_id,
+        )
+        return dict(row) if row else None
+
     async def list_cession_batch(self, issue_date: date) -> list[CessionBatchItem]:
         rows = await self.call_sp(
             "public.factoring__cession_batch_list",
@@ -446,6 +485,8 @@ class FactoringRepository(BaseRepository):
                 principal=row["principal"],
                 status=row["status"],
                 company_id=row.get("company_id"),
+                period=row.get("period"),
+                issued_at=row.get("issued_at"),
             )
             for row in rows
         ]
@@ -475,6 +516,48 @@ class FactoringRepository(BaseRepository):
         )
         return int(result) if result is not None else 0
 
+    async def mark_cession_sent_committed(
+        self,
+        application_ids: list[int],
+        contract_number: str,
+        *,
+        sign_process_id: str | None = None,
+        sign_group_id: str | None = None,
+    ) -> int:
+        """Stamp cession on a separate connection so a later rollback
+        does not un-mark applications the bank already accepted."""
+        from src.database.pool import get_db_pool
+
+        pool = await get_db_pool()
+        async with pool.acquire() as connection:
+            other = FactoringRepository(connection=connection)
+            async with connection.transaction():
+                return await other.mark_cession_sent(
+                    application_ids,
+                    contract_number,
+                    sign_process_id=sign_process_id,
+                    sign_group_id=sign_group_id,
+                )
+
+    async def unmark_cession_sent(
+        self,
+        application_ids: list[int],
+        contract_number: str | None = None,
+    ) -> int:
+        payload: dict[str, Any] = {
+            "application_ids": application_ids,
+        }
+        if contract_number is not None:
+            payload["contract_number"] = contract_number
+        result = scalar_from_sp_rows(
+            await self.call_sp(
+                "public.factoring__cession_unmark",
+                json.dumps(payload),
+                module_code="MYSPACE",
+            )
+        )
+        return int(result) if result is not None else 0
+
     async def update_application_from_webhook(
         self,
         *,
@@ -483,6 +566,7 @@ class FactoringRepository(BaseRepository):
         approved_params: dict[str, Any] | None = None,
         uuid: str | None = None,
         redirect_url: str | None = None,
+        issued_at: str | None = None,
     ) -> None:
         payload: dict[str, Any] = {
             "application_id": application_id,
@@ -494,6 +578,8 @@ class FactoringRepository(BaseRepository):
             payload["uuid"] = uuid
         if redirect_url is not None:
             payload["redirect_url"] = redirect_url
+        if issued_at is not None:
+            payload["issued_at"] = issued_at
         scalar_from_sp_rows(
             await self.call_sp(
                 "public.factoring__application_update_from_webhook",
@@ -501,3 +587,57 @@ class FactoringRepository(BaseRepository):
                 module_code="MYSPACE",
             )
         )
+
+    async def update_application_refund(
+        self,
+        *,
+        application_id: int | None = None,
+        uuid: str | None = None,
+        refund_type: str | None = None,
+        refund_amount: Decimal | None = None,
+        covlir_status: str | None = None,
+        clear: bool = False,
+    ) -> int:
+        payload: dict[str, Any] = {}
+        if application_id is not None:
+            payload["application_id"] = application_id
+        if uuid is not None:
+            payload["uuid"] = uuid
+        if refund_type is not None:
+            payload["refund_type"] = refund_type
+        if refund_amount is not None:
+            payload["refund_amount"] = str(refund_amount)
+        if covlir_status is not None:
+            payload["covlir_status"] = covlir_status
+        if clear:
+            payload["clear"] = True
+        scalar_result = scalar_from_sp_rows(
+            await self.call_sp(
+                "public.factoring__application_update_refund",
+                json.dumps(payload),
+                module_code="MYSPACE",
+            )
+        )
+        if scalar_result is None:
+            raise RuntimeError("Failed to update factoring refund.")
+        return int(scalar_result)
+
+    async def update_print_forms(
+        self,
+        application_id: int,
+        print_forms: list,
+    ) -> int:
+        payload: dict[str, Any] = {
+            "application_id": application_id,
+            "print_forms": print_forms,
+        }
+        scalar_result = scalar_from_sp_rows(
+            await self.call_sp(
+                "public.factoring__application_update_print_forms",
+                json.dumps(payload),
+                module_code="MYSPACE",
+            )
+        )
+        if scalar_result is None:
+            raise RuntimeError("Failed to update factoring print_forms.")
+        return int(scalar_result)

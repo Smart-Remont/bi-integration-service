@@ -195,6 +195,15 @@ class FFRepository(BaseRepository):
             )
         )
 
+    async def mark_apply_failed(self, application_id: int) -> None:
+        scalar_from_sp_rows(
+            await self.call_sp(
+                "public.installment__application_mark_apply_failed",
+                json.dumps({"application_id": application_id}),
+                module_code="MYSPACE",
+            )
+        )
+
     async def insert_event_log(
         self,
         *,

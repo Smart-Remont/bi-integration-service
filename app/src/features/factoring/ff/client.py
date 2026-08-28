@@ -1,3 +1,4 @@
+import json
 from typing import Any
 from urllib.parse import urlencode, urlparse
 
@@ -111,6 +112,24 @@ class FactoringClient:
             resolve_ip=resolve_ip,
         )
 
+    async def send_refund(
+        self,
+        base_url: str,
+        access_token: str,
+        payload: dict[str, Any],
+        *,
+        resolve_ip: str | None = None,
+        refund_path: str = "/ffc-api-public/custom/refund/factoring-refund/",
+    ) -> dict[str, Any]:
+        return await self._request(
+            method="POST",
+            base_url=base_url,
+            path=refund_path,
+            json=payload,
+            headers=self._auth_header(access_token),
+            resolve_ip=resolve_ip,
+        )
+
     async def _request(
         self,
         method: str,
@@ -195,9 +214,12 @@ class FactoringClient:
 
         detail: str
         if isinstance(payload, dict):
+            description = payload.get("description")
             message = payload.get("message") or payload.get("detail")
-            if isinstance(message, str) and message.strip():
-                detail = message
+            if isinstance(description, str) and description.strip():
+                detail = description.strip()
+            elif isinstance(message, str) and message.strip() and message.strip().lower() != "error":
+                detail = message.strip()
             else:
                 detail = "Freedom Factoring request failed."
         else:
@@ -230,21 +252,42 @@ class FactoringClient:
         return masked
 
     @staticmethod
-    def _mask_json_body(body: dict[str, Any] | None) -> dict[str, Any] | None:
+    def _mask_json_body(body: Any) -> Any:
         if body is None:
             return None
-        masked = dict(body)
-        if "password" in masked:
-            masked["password"] = "***"
-        for key in ("document", "digital_signature", "public_key"):
-            value = masked.get(key)
-            if isinstance(value, str) and len(value) > 40:
-                masked[key] = f"{value[:20]}...<{len(value)} chars>"
-        return masked
+        if isinstance(body, dict):
+            masked: dict[str, Any] = {}
+            for key, value in body.items():
+                key_lower = key.lower() if isinstance(key, str) else ""
+                if any(marker in key_lower for marker in ("iin", "phone", "mobile_phone", "password")):
+                    masked[key] = "***"
+                elif (
+                    key_lower in ("document", "digital_signature", "public_key", "file_content")
+                    and isinstance(value, str)
+                    and len(value) > 40
+                ):
+                    masked[key] = f"{value[:20]}...<{len(value)} chars>"
+                else:
+                    masked[key] = FactoringClient._mask_json_body(value)
+            return masked
+        if isinstance(body, list):
+            return [FactoringClient._mask_json_body(item) for item in body]
+        return body
 
     @staticmethod
     def _truncate_response_body(response: httpx.Response, limit: int = 4000) -> str:
         text = response.text
+        stripped = text.lstrip()
+        if stripped.startswith("{") or stripped.startswith("["):
+            try:
+                parsed = json.loads(text)
+                text = json.dumps(
+                    FactoringClient._mask_json_body(parsed),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            except ValueError:
+                pass
         if len(text) <= limit:
             return text
         return f"{text[:limit]}...<truncated>"

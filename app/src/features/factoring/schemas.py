@@ -49,6 +49,7 @@ class FactoringSignDocument(BaseSchema):
     sign_url: str | None = None
     signed: bool = False
     url: str | None = None
+    error: str | None = None
 
 
 class PrepareFactoringDocumentsResponse(BaseSchema):
@@ -142,6 +143,11 @@ class FactoringApplicationResponse(BaseSchema):
     credit_goods: list[Any] | None = None
     request_payload: dict[str, Any] | None = None
     issued_at: datetime | None = None
+    refund_type: str | None = None
+    refund_amount: Decimal | None = None
+    refund_status: str | None = None
+    refund_requested_at: datetime | None = None
+    refund_completed_at: datetime | None = None
     client_request_credit_detail_id: int | None = None
     created_by: int | None = None
     created_at: datetime | None = None
@@ -151,6 +157,39 @@ class FactoringApplicationResponse(BaseSchema):
 class FactoringApplicationListResponse(BaseSchema):
     items: list[FactoringApplicationResponse]
     total: int
+
+
+class FactoringProviderConfigResponse(BaseSchema):
+    periods: list[int]
+    discount_by_period: dict[str, Decimal]
+
+
+class CreateFactoringRefundRequest(BaseSchema):
+    refund_type: str = Field(examples=["REFUND"], description="REFUND или PARTIAL_REFUND")
+    refund_amount: Decimal | None = Field(
+        default=None,
+        description="Обязательна для PARTIAL_REFUND. Для REFUND по умолчанию = principal.",
+        examples=[55000],
+    )
+
+
+class FactoringRefundResponse(BaseSchema):
+    id: int
+    uuid: str
+    refund_type: str
+    refund_amount: Decimal
+    refund_status: str
+    bank_message: str | None = None
+
+
+class FactoringRefundWebhookPayload(BaseSchema):
+    model_config = ConfigDict(extra="allow")
+
+    uuid: str | None = None
+    partner_id: str | None = None
+    refund_type: str | None = None
+    refund_amount: Decimal | None = None
+    covlir_status: str | None = None
 
 
 class SendCessionRequest(BaseSchema):
@@ -214,3 +253,4 @@ class WebhookAckResponse(BaseSchema):
     )
 
     ok: bool = True
+    status: bool = True

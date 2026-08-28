@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Path, Query, Request, status
+from fastapi import APIRouter, HTTPException, Path, Query, Request, status
 from fastapi.responses import Response
 from src.routers.config import api_prefix_config
 
@@ -8,7 +8,6 @@ from .auth import FactoringBasicAuthDep
 from .deps import FactoringServiceDep
 from .openapi_examples import (
     APPLICATION_RESPONSES,
-    CREATE_APPLICATION_BODY,
     CREATE_APPLICATION_RESPONSES,
     WEBHOOK_ACK_RESPONSES,
     WEBHOOK_APPROVED,
@@ -16,10 +15,13 @@ from .openapi_examples import (
     WEBHOOK_REJECTED,
 )
 from .schemas import (
-    CreateFactoringApplicationRequest,
     CreateFactoringApplicationResponse,
+    CreateFactoringRefundRequest,
     FactoringApplicationListResponse,
     FactoringApplicationResponse,
+    FactoringProviderConfigResponse,
+    FactoringRefundResponse,
+    FactoringRefundWebhookPayload,
     FactoringWebhookPayload,
     PrepareFactoringDocumentsRequest,
     PrepareFactoringDocumentsResponse,
@@ -30,6 +32,18 @@ from .schemas import (
 )
 
 router = APIRouter(prefix=api_prefix_config.v1.factoring_ff, tags=["Factoring (Freedom Finance)"])
+
+
+@router.get(
+    "/config",
+    response_model=FactoringProviderConfigResponse,
+    summary="Сроки и тарифы факторинга из integration_provider_tab.config",
+)
+async def get_provider_config(
+    _: FactoringBasicAuthDep,
+    service: FactoringServiceDep,
+) -> FactoringProviderConfigResponse:
+    return await service.get_provider_config()
 
 
 @router.get(
@@ -48,24 +62,18 @@ async def list_applications(
 
 @router.post(
     "/applications",
-    response_model=CreateFactoringApplicationResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Создать заявку на факторинг (FFC2)",
+    status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+    summary="Отключён: one-shot create минует ЭЦП",
     description=(
-        "Создаёт запись в `installment_application_tab` (`product_type = FACTORING`), "
-        "вызывает банк `apply-lead-factoring`. Нужны ИИН, телефон и подписанные `print_forms`."
+        "Прямой apply без prepare/submit больше не принимается. "
+        "Используйте `POST /applications/prepare`, затем `POST /applications/{id}/submit`."
     ),
-    responses=CREATE_APPLICATION_RESPONSES,
 )
-async def create_application(
-    _: FactoringBasicAuthDep,
-    request: Annotated[
-        CreateFactoringApplicationRequest,
-        Body(openapi_examples=CREATE_APPLICATION_BODY),
-    ],
-    service: FactoringServiceDep,
-) -> CreateFactoringApplicationResponse:
-    return await service.create_application(request)
+async def create_application_disabled(_: FactoringBasicAuthDep) -> None:
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail="Use POST /applications/prepare then POST /applications/{id}/submit.",
+    )
 
 
 @router.post(
@@ -130,7 +138,7 @@ async def download_print_form(
     summary="Callback MyNCA после подписи (no-op, статус проверяем poll)",
 )
 async def sign_callback() -> WebhookAckResponse:
-    return WebhookAckResponse(ok=True)
+    return WebhookAckResponse(ok=True, status=True)
 
 
 @router.post(
@@ -175,12 +183,26 @@ async def get_application(
 
 
 @router.post(
+    "/applications/{application_id}/refund",
+    response_model=FactoringRefundResponse,
+    summary="Вызвать возврат (FULL/PARTIAL) в Freedom factoring-refund",
+)
+async def create_refund(
+    _: FactoringBasicAuthDep,
+    application_id: Annotated[int, Path(examples=[29])],
+    request: CreateFactoringRefundRequest,
+    service: FactoringServiceDep,
+) -> FactoringRefundResponse:
+    return await service.create_refund(application_id, request)
+
+
+@router.post(
     "/webhook",
     response_model=WebhookAckResponse,
     summary="Webhook статусов факторинга от Freedom",
     description=(
-        "Входящий hook. Basic Auth — если заданы webhook_username/password у провайдера "
-        "`FF_FACTORING`."
+        "Входящий hook. Basic Auth обязателен (`webhook_username`/`webhook_password` у `FF_FACTORING`). "
+        "Без кредов в БД hook отклоняется, заявку подать нельзя."
     ),
     responses=WEBHOOK_ACK_RESPONSES,
 )
@@ -203,3 +225,22 @@ async def webhook_factoring(
         payload.update(body.__pydantic_extra__)
     authorization_header = request.headers.get("Authorization")
     return await service.handle_webhook(payload, authorization_header=authorization_header)
+
+
+@router.post(
+    "/webhook/refund",
+    response_model=WebhookAckResponse,
+    summary="Callback Colvir по возврату (covlir_status)",
+)
+async def webhook_factoring_refund(
+    request: Request,
+    body: FactoringRefundWebhookPayload,
+    service: FactoringServiceDep,
+) -> WebhookAckResponse:
+    payload = body.model_dump()
+    if body.__pydantic_extra__:
+        payload.update(body.__pydantic_extra__)
+    authorization_header = request.headers.get("Authorization")
+    return await service.handle_refund_webhook(
+        payload, authorization_header=authorization_header
+    )

@@ -119,6 +119,7 @@ class FFService(BaseService):
             )
 
         provider = await self._require_provider()
+        await self._require_webhook_credentials()
         if not await self.ff_repository.client_request_exists(request.client_request_id):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -194,6 +195,14 @@ class FFService(BaseService):
                     "request": payload,
                 },
             )
+            try:
+                await self.ff_repository.mark_apply_failed(application_id)
+            except Exception as mark_exc:  # noqa: BLE001
+                logger.warning(
+                    "Failed to mark APPLY_FAILED | application_id={id} error={error}",
+                    id=application_id,
+                    error=mark_exc,
+                )
             raise
 
         application_uuid = response_payload.get("uuid")
@@ -208,6 +217,14 @@ class FFService(BaseService):
                     "request": payload,
                 },
             )
+            try:
+                await self.ff_repository.mark_apply_failed(application_id)
+            except Exception as mark_exc:  # noqa: BLE001
+                logger.warning(
+                    "Failed to mark APPLY_FAILED | application_id={id} error={error}",
+                    id=application_id,
+                    error=mark_exc,
+                )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Freedom Finance did not return application uuid.",
@@ -454,7 +471,7 @@ class FFService(BaseService):
         authorization_header: str | None,
     ) -> WebhookAckResponse:
         try:
-            await self._verify_webhook_auth_if_configured(authorization_header)
+            await self._verify_webhook_auth(authorization_header)
         except HTTPException as exc:
             await self._log_event(
                 "WEBHOOK_AUTH_FAILED",
@@ -481,6 +498,10 @@ class FFService(BaseService):
             reference_id=reference_id,
             uuid=uuid,
         )
+        if application is not None:
+            owned = await self.ff_repository.get_application_by_id(application.id)
+            if owned is None:
+                application = None
         if application is None:
             await self._log_event(
                 "WEBHOOK_ORPHAN",
@@ -492,10 +513,7 @@ class FFService(BaseService):
                     "hook": payload,
                 },
             )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Application was not found by reference_id/uuid.",
-            )
+            return WebhookAckResponse(ok=True, status=True)
 
         await self._log_event(
             "HOOK_RECEIVED",
@@ -507,6 +525,8 @@ class FFService(BaseService):
                 "status_after": status_value,
             },
         )
+
+        status_value = self._keep_terminal_poll_status(application.status, status_value)
 
         if application.status == status_value and application.approved_params == approved_params:
             await self._log_event(
@@ -521,7 +541,7 @@ class FFService(BaseService):
             )
             if status_value == "ISSUED":
                 await self._try_auto_apply_on_issued(application.id)
-            return WebhookAckResponse(ok=True)
+            return WebhookAckResponse(ok=True, status=True)
 
         try:
             await self.ff_repository.update_application_from_webhook(
@@ -558,7 +578,7 @@ class FFService(BaseService):
             )
             raise
 
-        return WebhookAckResponse(ok=True)
+        return WebhookAckResponse(ok=True, status=True)
 
     async def _apply_with_reauth(self, provider: FFProvider, payload: dict[str, Any]) -> dict[str, Any]:
         access_token = await self._ensure_valid_token(provider=provider)
@@ -758,10 +778,22 @@ class FFService(BaseService):
             detail=detail,
         )
 
-    async def _verify_webhook_auth_if_configured(self, authorization_header: str | None) -> None:
+    async def _require_webhook_credentials(self) -> FFWebhookCredential:
         credentials = await self.ff_repository.get_provider_webhook_credentials(code="FF")
         if credentials is None:
-            return
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "Webhook credentials for FF are not configured. "
+                    "Cannot submit the application until webhook_username/password are set."
+                ),
+            )
+        return credentials
+
+    async def _verify_webhook_auth(self, authorization_header: str | None) -> None:
+        credentials = await self.ff_repository.get_provider_webhook_credentials(code="FF")
+        if credentials is None:
+            raise self._invalid_webhook_credentials_exception()
 
         username, password = self._parse_basic_authorization_header(authorization_header)
         if username is None or password is None:
@@ -810,11 +842,9 @@ class FFService(BaseService):
 
     @staticmethod
     def _keep_terminal_poll_status(current: str | None, polled: str) -> str:
-        """FF sandbox often stays NEW after a local ISSUED; do not regress terminal statuses."""
-        if current == "ISSUED" and polled not in {"ISSUED", "REJECTED"}:
-            return "ISSUED"
-        if current == "REJECTED" and polled not in {"REJECTED", "ISSUED"}:
-            return "REJECTED"
+        """Do not overwrite terminal ISSUED/REJECTED with a different poll/webhook status."""
+        if current in {"ISSUED", "REJECTED"} and polled != current:
+            return current
         return polled
 
     @staticmethod
@@ -957,7 +987,7 @@ class FFService(BaseService):
             await self.ff_repository.insert_event_log(
                 installment_id=installment_id,
                 event_type=event_type,
-                payload=payload or {},
+                payload=self._redact_pii(payload or {}),
                 source=source,
             )
         except Exception as exc:
@@ -980,6 +1010,35 @@ class FFService(BaseService):
                 return match.group(1) if match else text
             cause = cause.__cause__
         return str(exc)
+
+    @staticmethod
+    def _redact_pii(value: Any) -> Any:
+        if isinstance(value, dict):
+            redacted: dict[str, Any] = {}
+            for key, item in value.items():
+                lowered = key.lower()
+                if (
+                    lowered in {
+                        "iin",
+                        "mobile_phone",
+                        "phone",
+                        "prop_iin",
+                        "prop_phone",
+                        "first_name",
+                        "last_name",
+                        "middle_name",
+                        "fio",
+                    }
+                    or lowered.endswith("_iin")
+                    or "phone" in lowered
+                ):
+                    redacted[key] = "***"
+                else:
+                    redacted[key] = FFService._redact_pii(item)
+            return redacted
+        if isinstance(value, list):
+            return [FFService._redact_pii(item) for item in value]
+        return value
 
     @staticmethod
     def _invalid_webhook_credentials_exception() -> HTTPException:

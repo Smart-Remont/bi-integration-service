@@ -208,7 +208,8 @@ async def poll_application(
     response_model=WebhookAckResponse,
     summary="Webhook от Freedom Finance",
     description=(
-        "Входящий hook от банка. Basic Auth — если настроены `webhook_username` / `webhook_password` у провайдера FF. "
+        "Входящий hook от банка. Basic Auth обязателен (`webhook_username` / `webhook_password` у провайдера FF). "
+        "Без кредов в БД hook отклоняется, заявку подать нельзя."
         "В Swagger выберите пример: approved / rejected / issued."
     ),
     responses=WEBHOOK_ACK_RESPONSES,

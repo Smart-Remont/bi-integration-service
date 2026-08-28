@@ -1,5 +1,6 @@
 import base64
 import binascii
+import re
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -18,7 +19,10 @@ from ..schemas import (
     CessionBatchResult,
     CreateFactoringApplicationRequest,
     CreateFactoringApplicationResponse,
+    CreateFactoringRefundRequest,
     FactoringApplicationResponse,
+    FactoringProviderConfigResponse,
+    FactoringRefundResponse,
     FactoringSignDocument,
     PrepareFactoringDocumentsRequest,
     PrepareFactoringDocumentsResponse,
@@ -38,12 +42,19 @@ from .repo import (
     FactoringRepository,
     FactoringWebhookCredential,
 )
+from .cession_placeholders import (
+    allowed_periods,
+    build_cession_placeholders,
+    parse_discount_by_period,
+)
 from .templates import PRINT_FORM_SPECS, fetch_template_bytes
 
 VALID_WEBHOOK_STATUSES = {"REJECTED", "APPROVED", "ALTERNATIVE", "ISSUED", "PENDING", "IN_PROGRESS"}
+ACTIVE_PREPARE_STATUSES = {"WAITING_SIGN", "NEW", "IN_PROGRESS", "PENDING", "APPROVED", "ALTERNATIVE"}
+TERMINAL_WEBHOOK_STATUSES = {"ISSUED", "REJECTED", "REVERSED"}
 PRINT_FORMS_CACHE_DIR = Path(gettempdir()) / "factoring-print-forms"
 ALMATY_TZ = ZoneInfo("Asia/Almaty")
-CESSION_TEMPLATE_CODE = "FF_FACTORING_CESSION_AGREEMENT"
+CESSION_TEMPLATE_CODE = "FF_FACTORING_CESSION"
 
 
 class FactoringService(BaseService):
@@ -69,161 +80,9 @@ class FactoringService(BaseService):
         self,
         request: CreateFactoringApplicationRequest,
     ) -> CreateFactoringApplicationResponse:
-        provider = await self._require_provider()
-        if not await self.repository.client_request_exists(request.client_request_id):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"client_request_id={request.client_request_id} was not found.",
-            )
-
-        iin = self._normalize_iin(request.iin)
-        phone = self._normalize_phone(request.mobile_phone)
-        if iin is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Invalid IIN: expected 12 digits.",
-            )
-        if phone is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Invalid mobile_phone: expected Kazakhstan number (+7...).",
-            )
-
-        product_id = request.product_id or self._required_config_value(provider, "default_product_id")
-        partner = self._required_config_value(provider, "partner_id")
-        channel = self._required_config_value(provider, "channel")
-        hook_url = self._required_config_value(provider, "hook_url")
-        success_url = self._required_config_value(provider, "success_url")
-        failure_url = self._required_config_value(provider, "failure_url")
-        branch_code = (request.branch_code or "200000").strip()
-        credit_contract = (request.credit_contract or "").strip() or self._generate_credit_contract(
-            branch_code=branch_code,
-            client_request_id=request.client_request_id,
-        )
-
-        print_forms = [item.model_dump(mode="json") for item in request.print_forms]
-        credit_goods = (
-            [item.model_dump(mode="json", exclude_none=True) for item in request.credit_goods]
-            if request.credit_goods
-            else None
-        )
-
-        application_id = await self.repository.insert_application(
-            client_request_id=request.client_request_id,
-            provider_id=provider.id,
-            credit_contract=credit_contract,
-            product_id=product_id,
-            principal=request.principal,
-            period=request.period,
-            created_by=request.created_by,
-            partner=partner,
-            channel=channel,
-            branch_code=branch_code,
-            prepayment_amount=request.prepayment_amount,
-            interest_rate=request.interest_rate,
-            print_forms=print_forms,
-            credit_goods=credit_goods,
-            success_url=success_url,
-            failure_url=failure_url,
-            hook_url=hook_url,
-            status="NEW",
-        )
-        reference_id = str(application_id)
-
-        await self._log_event(
-            "APPLICATION_INIT",
-            factoring_id=application_id,
-            source="FACTORING",
-            payload={
-                "client_request_id": request.client_request_id,
-                "credit_contract": credit_contract,
-                "product_id": product_id,
-                "principal": str(request.principal),
-                "period": request.period,
-                "created_by": request.created_by,
-                "reference_id": reference_id,
-            },
-        )
-
-        bank_payload = self._build_apply_payload(
-            provider=provider,
-            iin=iin,
-            phone=phone,
-            product_id=product_id,
-            partner=partner,
-            channel=channel,
-            credit_contract=credit_contract,
-            request=request,
-            print_forms=print_forms,
-            credit_goods=credit_goods,
-            reference_id=reference_id,
-            hook_url=hook_url,
-            success_url=success_url,
-            failure_url=failure_url,
-        )
-        await self._log_event(
-            "FF_APPLY_REQUEST",
-            factoring_id=application_id,
-            source="FF_FACTORING",
-            payload=bank_payload,
-        )
-
-        try:
-            response_payload = await self._apply_with_reauth(provider=provider, payload=bank_payload)
-        except HTTPException as exc:
-            await self._log_event(
-                "FF_APPLY_FAILED",
-                factoring_id=application_id,
-                source="FF_FACTORING",
-                payload={"error": self._extract_error_message(exc), "request": bank_payload},
-            )
-            raise
-
-        application_uuid = response_payload.get("uuid")
-        if not isinstance(application_uuid, str) or not application_uuid:
-            await self._log_event(
-                "FF_APPLY_FAILED",
-                factoring_id=application_id,
-                source="FF_FACTORING",
-                payload={
-                    "error": "Freedom Factoring did not return application uuid.",
-                    "response": response_payload,
-                    "request": bank_payload,
-                },
-            )
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Freedom Factoring did not return application uuid.",
-            )
-
-        redirect_url = self._extract_redirect_url(response_payload)
-
-        await self.repository.update_application_after_apply(
-            application_id=application_id,
-            uuid=application_uuid,
-            redirect_url=redirect_url,
-            status="IN_PROGRESS",
-            reference_id=reference_id,
-        )
-        await self._log_event(
-            "CREATED",
-            factoring_id=application_id,
-            source="FF_FACTORING",
-            payload={
-                "response": response_payload,
-                "request": bank_payload,
-                "status": "IN_PROGRESS",
-            },
-        )
-
-        return CreateFactoringApplicationResponse(
-            id=application_id,
-            uuid=application_uuid,
-            reference_id=reference_id,
-            credit_contract=credit_contract,
-            status="IN_PROGRESS",
-            redirect_url=redirect_url,
-            provider_code=PROVIDER_CODE,
+        raise HTTPException(
+            status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+            detail="Use POST /applications/prepare then submit.",
         )
 
     async def prepare_documents(
@@ -232,6 +91,7 @@ class FactoringService(BaseService):
     ) -> PrepareFactoringDocumentsResponse:
         self._require_mynca().require_configured()
         provider = await self._require_provider()
+        await self._require_webhook_credentials()
         if not await self.repository.client_request_exists(request.client_request_id):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -251,8 +111,11 @@ class FactoringService(BaseService):
                 detail="Invalid mobile_phone: expected Kazakhstan number (+7...).",
             )
 
+        self._require_allowed_period(provider, request.period)
         product_id = request.product_id or self._required_config_value(provider, "default_product_id")
-        partner = self._required_config_value(provider, "partner_id")
+        partner = await self._require_partner_for_client_request(
+            provider, request.client_request_id
+        )
         channel = self._required_config_value(provider, "channel")
         hook_url = self._required_config_value(provider, "hook_url")
         success_url = self._required_config_value(provider, "success_url")
@@ -261,6 +124,15 @@ class FactoringService(BaseService):
         existing = await self.repository.get_applications_by_client_request(
             request.client_request_id
         )
+        busy = [item for item in existing if item.status in ACTIVE_PREPARE_STATUSES]
+        if busy:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"По сделке уже есть активная заявка id={busy[0].id} "
+                    f"(status={busy[0].status}). Дождитесь завершения или отклоните её."
+                ),
+            )
         credit_contract = self._generate_credit_contract(
             branch_code=branch_code,
             client_request_id=request.client_request_id,
@@ -357,6 +229,7 @@ class FactoringService(BaseService):
         request: SubmitFactoringApplicationRequest,
     ) -> CreateFactoringApplicationResponse:
         application = await self.get_application_by_id(application_id)
+        await self._require_webhook_credentials()
         if application.status not in {"WAITING_SIGN", "NEW"}:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -365,9 +238,13 @@ class FactoringService(BaseService):
         documents = await self._poll_print_form_signatures(application)
         unsigned = [item.title for item in documents if not item.signed]
         if unsigned:
+            mismatches = [item.error for item in documents if item.error]
+            detail = "Клиент ещё не подписал: " + ", ".join(unsigned)
+            if mismatches:
+                detail = "; ".join(mismatches)
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Клиент ещё не подписал: " + ", ".join(unsigned),
+                detail=detail,
             )
 
         # Заявку на факторинг могут оформить не на владельца сделки, а на другого
@@ -391,7 +268,9 @@ class FactoringService(BaseService):
         product_id = application.product_id or self._required_config_value(
             provider, "default_product_id"
         )
-        partner = application.partner or self._required_config_value(provider, "partner_id")
+        partner = application.partner or await self._require_partner_for_client_request(
+            provider, application.client_request_id
+        )
         channel = application.channel or self._required_config_value(provider, "channel")
         hook_url = self._required_config_value(provider, "hook_url")
         success_url = self._required_config_value(provider, "success_url")
@@ -507,11 +386,14 @@ class FactoringService(BaseService):
         cached = self._print_form_cache_path(application_id, name)
         if cached.exists():
             return cached.read_bytes()
-        signed = await self._is_print_form_signed(form)
+        signed, error = await self._print_form_sign_state(
+            form,
+            self._normalize_iin((application.request_payload or {}).get("iin")),
+        )
         if not signed:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Документ ещё не подписан.",
+                detail=error or "Документ ещё не подписан.",
             )
         sign_process_id = str(form.get("sign_process_id") or "")
         try:
@@ -539,13 +421,145 @@ class FactoringService(BaseService):
     ) -> list[FactoringApplicationResponse]:
         return await self.repository.get_applications_by_client_request(client_request_id)
 
+    async def create_refund(
+        self,
+        application_id: int,
+        request: CreateFactoringRefundRequest,
+    ) -> FactoringRefundResponse:
+        application = await self.get_application_by_id(application_id)
+        await self._require_webhook_credentials()
+        if (application.status or "").upper() != "ISSUED":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Возврат можно вызвать только по заявке в статусе ISSUED.",
+            )
+        if not application.uuid:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="У заявки нет uuid банка — возврат невозможен.",
+            )
+        if not application.partner:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="У заявки нет partner_id — возврат невозможен.",
+            )
+        if (application.refund_status or "").upper() == "REQUESTED":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Возврат уже отправлен в банк, ждём ответ Colvir.",
+            )
+        if (application.refund_status or "").upper() == "SUCCESS" and (
+            application.refund_type or ""
+        ).upper() == "REFUND":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Полный возврат по этой заявке уже проведён.",
+            )
+
+        refund_type = request.refund_type.strip().upper()
+        if refund_type not in {"REFUND", "PARTIAL_REFUND"}:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="refund_type must be REFUND or PARTIAL_REFUND.",
+            )
+        principal = application.principal or Decimal("0")
+        already_refunded = Decimal("0")
+        refund_status = (application.refund_status or "").upper()
+        if application.refund_amount and (
+            refund_status == "SUCCESS" or application.refund_completed_at is not None
+        ):
+            already_refunded = application.refund_amount
+        remaining = principal - already_refunded
+        if remaining <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="По этой заявке уже возвращена полная сумма договора.",
+            )
+        amount = request.refund_amount if request.refund_amount is not None else remaining
+        if amount <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="refund_amount must be greater than 0.",
+            )
+        if refund_type == "REFUND" and amount > remaining:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Для REFUND сумма не должна превышать остаток по договору.",
+            )
+        if refund_type == "PARTIAL_REFUND" and amount >= remaining:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Для PARTIAL_REFUND сумма должна быть строго меньше остатка по договору.",
+            )
+
+        provider = await self._require_provider()
+        hook_url = provider.config.get("refund_hook_url")
+        if not isinstance(hook_url, str) or not hook_url.strip():
+            hook_url = f"{self.public_base_url}/api/v1/factoring/ff/webhook/refund"
+        bank_payload = {
+            "uuid": application.uuid,
+            "partner_id": application.partner,
+            "refund_type": refund_type,
+            "refund_amount": float(amount),
+            "hook_url": hook_url,
+        }
+        await self.repository.update_application_refund(
+            application_id=application.id,
+            refund_type=refund_type,
+            refund_amount=amount,
+        )
+        try:
+            bank_response = await self._refund_with_reauth(provider=provider, payload=bank_payload)
+        except FactoringClientError as exc:
+            mapped = self._map_client_error(exc)
+            if mapped.status_code < 500:
+                await self._clear_requested_refund(application.id)
+            raise mapped from exc
+        except HTTPException as exc:
+            if exc.status_code < 500:
+                await self._clear_requested_refund(application.id)
+            raise
+        await self._log_event(
+            "REFUND_REQUEST",
+            factoring_id=application.id,
+            source="FF_FACTORING",
+            committed=True,
+            payload={"request": bank_payload, "response": bank_response},
+        )
+        return FactoringRefundResponse(
+            id=application.id,
+            uuid=application.uuid,
+            refund_type=refund_type,
+            refund_amount=amount,
+            refund_status="REQUESTED",
+            bank_message=str(bank_response.get("message") or "success"),
+        )
+
+    async def _clear_requested_refund(self, application_id: int) -> None:
+        try:
+            await self.repository.update_application_refund(
+                application_id=application_id,
+                clear=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to clear REQUESTED refund after bank error | id={id} error={error}",
+                id=application_id,
+                error=exc,
+            )
+
     async def handle_webhook(
         self,
         payload: dict[str, Any],
         *,
         authorization_header: str | None,
     ) -> WebhookAckResponse:
-        await self._verify_webhook_auth_if_configured(authorization_header)
+        await self._verify_webhook_auth(authorization_header)
+
+        if self._extract_string(payload, "covlir_status"):
+            return await self.handle_refund_webhook(
+                payload, authorization_header=authorization_header
+            )
 
         status_value = self._extract_status(payload)
         reference_id = self._extract_string(payload, "reference_id")
@@ -560,17 +574,17 @@ class FactoringService(BaseService):
                 source="FF_FACTORING",
                 payload=payload,
             )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Factoring application was not found for webhook payload.",
-            )
+            return WebhookAckResponse(ok=True, status=True)
 
+        status_value = self._keep_terminal_webhook_status(application.status, status_value)
+        issued_at = self._extract_issued_at(payload)
         approved_params = self._build_approved_params(payload)
         await self.repository.update_application_from_webhook(
             application_id=application.id,
             status=status_value,
             approved_params=approved_params,
             uuid=uuid,
+            issued_at=issued_at,
         )
         await self._log_event(
             "WEBHOOK",
@@ -578,7 +592,58 @@ class FactoringService(BaseService):
             source="FF_FACTORING",
             payload={"status": status_value, "raw": payload},
         )
-        return WebhookAckResponse(ok=True)
+        return WebhookAckResponse(ok=True, status=True)
+
+    async def handle_refund_webhook(
+        self,
+        payload: dict[str, Any],
+        *,
+        authorization_header: str | None,
+    ) -> WebhookAckResponse:
+        await self._verify_webhook_auth(authorization_header)
+        uuid = self._extract_string(payload, "uuid")
+        covlir_status = (self._extract_string(payload, "covlir_status") or "").upper()
+        if not uuid:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Refund webhook payload must include uuid.",
+            )
+        if covlir_status not in {"SUCCESS", "DECLINE"}:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Refund webhook payload must include covlir_status SUCCESS|DECLINE.",
+            )
+        application = await self.repository.get_application_by_reference_or_uuid(
+            reference_id=None,
+            uuid=uuid,
+        )
+        if application is None:
+            await self._log_event(
+                "REFUND_WEBHOOK_ORPHAN",
+                source="FF_FACTORING",
+                payload=payload,
+            )
+            return WebhookAckResponse(ok=True, status=True)
+
+        refund_type = self._extract_string(payload, "refund_type")
+        refund_amount_raw = payload.get("refund_amount")
+        refund_amount = None
+        if refund_amount_raw is not None:
+            refund_amount = Decimal(str(refund_amount_raw))
+        await self.repository.update_application_refund(
+            application_id=application.id,
+            uuid=uuid,
+            refund_type=refund_type,
+            refund_amount=refund_amount,
+            covlir_status=covlir_status,
+        )
+        await self._log_event(
+            "REFUND_WEBHOOK",
+            factoring_id=application.id,
+            source="FF_FACTORING",
+            payload=payload,
+        )
+        return WebhookAckResponse(ok=True, status=True)
 
     async def send_daily_cession(self, request: SendCessionRequest) -> SendCessionResponse:
         """One cession (assignment agreement) per legal entity (company_id from
@@ -674,6 +739,11 @@ class FactoringService(BaseService):
         contract_number = self._generate_cession_contract_number(issue_date, company_id)
         signing_date = datetime.now(ALMATY_TZ).date()
 
+        company = (
+            await self.repository.get_cession_company(company_id)
+            if company_id is not None
+            else None
+        )
         pdf_bytes = await self._build_cession_document(
             partner=partner,
             contract_number=contract_number,
@@ -681,6 +751,20 @@ class FactoringService(BaseService):
             signing_date=signing_date,
             payment_amount=payment_amount,
             count=len(company_items),
+            applications=[
+                {
+                    "uuid": item.uuid,
+                    "credit_contract": item.credit_contract,
+                    "principal": item.principal,
+                    "period": item.period,
+                    "issued_at": item.issued_at,
+                }
+                for item in company_items
+            ],
+            company_name=str((company or {}).get("company_name_official") or ""),
+            company_iik=str((company or {}).get("bank_account") or ""),
+            client_signer=str((company or {}).get("director_fio") or ""),
+            discount_by_period=parse_discount_by_period(provider.config.get("discount_by_period")),
         )
 
         try:
@@ -744,13 +828,23 @@ class FactoringService(BaseService):
                 "digital_signature_bytes": len(cms_bytes),
                 "sign_process_id": sign_process_id,
                 "sign_group_id": sign_group_id,
-                "bank_payload": bank_payload,
             },
         )
 
         cession_path = provider.config.get("cession_path")
         if not isinstance(cession_path, str) or not cession_path.strip():
             cession_path = "/ffc-api-public/custom/partner-document/assignment-agreement/"
+
+        application_ids = [item.id for item in company_items]
+        mark_sent = getattr(
+            self.repository, "mark_cession_sent_committed", self.repository.mark_cession_sent
+        )
+        await mark_sent(
+            application_ids,
+            contract_number,
+            sign_process_id=sign_process_id,
+            sign_group_id=sign_group_id,
+        )
 
         try:
             access_token = await self._ensure_valid_token(provider)
@@ -786,14 +880,15 @@ class FactoringService(BaseService):
                     "error": exc.detail,
                 },
             )
-            raise self._map_client_error(exc) from exc
+            mapped = self._map_client_error(exc)
+            if mapped.status_code < 500:
+                await self.repository.unmark_cession_sent(application_ids, contract_number)
+            raise mapped from exc
+        except HTTPException as exc:
+            if exc.status_code < 500:
+                await self.repository.unmark_cession_sent(application_ids, contract_number)
+            raise
 
-        await self.repository.mark_cession_sent(
-            [item.id for item in company_items],
-            contract_number,
-            sign_process_id=sign_process_id,
-            sign_group_id=sign_group_id,
-        )
         await self._log_event(
             "CESSION_SENT",
             factoring_id=company_items[0].id,
@@ -831,13 +926,22 @@ class FactoringService(BaseService):
             partner = mapping.get(str(company_id))
             if isinstance(partner, str) and partner.strip():
                 return partner.strip()
-        # Fallback for single-entity setups without a mapping configured yet.
-        legacy_partner = provider.config.get("partner_id")
-        if isinstance(legacy_partner, str) and legacy_partner.strip() and not (
-            isinstance(mapping, dict) and mapping
-        ):
-            return legacy_partner.strip()
         return None
+
+    async def _require_partner_for_client_request(
+        self, provider: FactoringProvider, client_request_id: int
+    ) -> str:
+        company_id = await self.repository.get_client_request_company_id(client_request_id)
+        partner = self._resolve_partner_for_company(provider, company_id)
+        if partner is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"company_id={company_id}: нет partner в config.partner_by_company_id "
+                    "— заявку в банк не отправляем."
+                ),
+            )
+        return partner
 
     async def _get_cession_signer_key(self, company_id: int | None) -> tuple[str, str]:
         """Returns (key_b64, password) for the ТОО's EDS used to sign cession,
@@ -885,7 +989,7 @@ class FactoringService(BaseService):
         # keeps numbers unique when we send several batches (one per ТОО) for
         # the same issue_date.
         suffix = f"-{company_id}" if company_id is not None else ""
-        return f"ЦЕС-{issue_date.year}-{issue_date:%m%d}{suffix}-{token_hex(2).upper()}"
+        return f"ЦЕС-{issue_date.year}-{issue_date:%m%d}{suffix}"
 
     async def _build_cession_document(
         self,
@@ -896,6 +1000,11 @@ class FactoringService(BaseService):
         signing_date: date,
         payment_amount: Decimal,
         count: int,
+        applications: list[dict[str, Any]] | None = None,
+        company_name: str = "",
+        company_iik: str = "",
+        client_signer: str = "",
+        discount_by_period: dict[int, Decimal] | None = None,
     ) -> bytes:
         template = await self.repository.get_template_by_code(CESSION_TEMPLATE_CODE)
         path = str((template or {}).get("template_path") or "").strip()
@@ -908,16 +1017,24 @@ class FactoringService(BaseService):
                 ),
             )
         docx_bytes = await fetch_template_bytes(path, self.office_public_url)
-        amount_str = f"{payment_amount:,.0f}".replace(",", " ")
-        placeholders = {
-            "partner": partner,
-            "contract_number": contract_number,
-            "issue_date": issue_date.strftime("%d.%m.%Y"),
-            "signing_date": signing_date.strftime("%d.%m.%Y"),
-            "payment_amount": amount_str,
-            "applications_count": str(count),
-        }
-        filled = fill_docx_bytes(docx_bytes, placeholders)
+        items = applications or []
+        placeholders, row_values = build_cession_placeholders(
+            contract_number=contract_number,
+            issue_date=issue_date,
+            company_name=company_name,
+            company_iik=company_iik,
+            client_signer=client_signer,
+            applications=items,
+            discount_by_period=discount_by_period,
+        )
+        placeholders.setdefault("partner", partner)
+        placeholders.setdefault("signing_date", signing_date.strftime("%d.%m.%Y"))
+        placeholders.setdefault(
+            "payment_amount",
+            f"{payment_amount:,.0f}".replace(",", " "),
+        )
+        placeholders.setdefault("applications_count", str(count))
+        filled = fill_docx_bytes(docx_bytes, placeholders, row_values=row_values)
         try:
             return await self._require_mynca().docx_to_pdf(filled)
         except MyncaClientError as exc:
@@ -998,6 +1115,37 @@ class FactoringService(BaseService):
                         access_token=access_token,
                         payload=payload,
                         apply_path=apply_path,
+                        **self._request_kwargs(provider),
+                    )
+                except FactoringClientError as retry_exc:
+                    raise self._map_client_error(retry_exc) from retry_exc
+            raise self._map_client_error(exc) from exc
+
+    async def _refund_with_reauth(
+        self,
+        *,
+        provider: FactoringProvider,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        access_token = await self._ensure_valid_token(provider)
+        refund_path = provider.config.get("refund_path")
+        if not isinstance(refund_path, str) or not refund_path.strip():
+            refund_path = "/ffc-api-public/custom/refund/factoring-refund/"
+        try:
+            return await self.client.send_refund(
+                access_token=access_token,
+                payload=payload,
+                refund_path=refund_path,
+                **self._request_kwargs(provider),
+            )
+        except FactoringClientError as exc:
+            if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+                access_token = await self._authenticate_and_store_token(provider)
+                try:
+                    return await self.client.send_refund(
+                        access_token=access_token,
+                        payload=payload,
+                        refund_path=refund_path,
                         **self._request_kwargs(provider),
                     )
                 except FactoringClientError as retry_exc:
@@ -1175,6 +1323,7 @@ class FactoringService(BaseService):
             sign_url=str(form.get("sign_url") or "") or None,
             signed=is_signed,
             url=url,
+            error=str(form.get("error") or "") or None,
         )
 
     @staticmethod
@@ -1192,12 +1341,16 @@ class FactoringService(BaseService):
                 return item
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Print form not found.")
 
-    async def _is_print_form_signed(self, form: dict[str, Any]) -> bool:
-        if form.get("signed"):
-            return True
+    async def _print_form_sign_state(
+        self,
+        form: dict[str, Any],
+        expected_iin: str | None,
+    ) -> tuple[bool, str | None]:
+        if form.get("signed") and not expected_iin:
+            return True, None
         sign_process_id = str(form.get("sign_process_id") or "")
         if not sign_process_id:
-            return False
+            return bool(form.get("signed")), None
         try:
             payload = await self._require_mynca().sign_status(sign_process_id)
         except MyncaClientError as exc:
@@ -1206,19 +1359,47 @@ class FactoringService(BaseService):
                 id=sign_process_id,
                 error=exc.detail,
             )
-            return False
-        return self._require_mynca().is_process_signed(payload)
+            return False, None
+        if not self._require_mynca().is_process_signed(payload):
+            return False, None
+        if expected_iin:
+            signer_iin = self._extract_signer_iin(payload)
+            if not signer_iin:
+                return False, "В подписи ЭЦП нет ИИН (dn_name / signer.subject.iin)"
+            if signer_iin != expected_iin:
+                return False, (
+                    f"ИИН ЭЦП {signer_iin} не совпадает с ИИН заявки {expected_iin}"
+                )
+        return True, None
 
     async def _poll_print_form_signatures(
         self,
         application: FactoringApplicationResponse,
     ) -> list[FactoringSignDocument]:
+        expected_iin = self._normalize_iin((application.request_payload or {}).get("iin"))
         documents: list[FactoringSignDocument] = []
+        updated_list: list[dict[str, Any]] = []
+        changed = False
         for form in self._print_forms_list(application):
-            signed = await self._is_print_form_signed(form)
+            signed, error = await self._print_form_sign_state(form, expected_iin)
+            form_copy = dict(form)
+            form_copy["signed"] = signed
+            if error:
+                form_copy["error"] = error
+            if form_copy.get("signed") != form.get("signed") or form_copy.get("error") != form.get(
+                "error"
+            ):
+                changed = True
+            updated_list.append(form_copy)
             documents.append(
-                self._to_sign_document(form, application_id=application.id, signed=signed)
+                self._to_sign_document(
+                    form_copy, application_id=application.id, signed=signed
+                )
             )
+        if changed:
+            update_print_forms = getattr(self.repository, "update_print_forms", None)
+            if update_print_forms is not None:
+                await update_print_forms(application.id, updated_list)
         return documents
 
     @staticmethod
@@ -1233,6 +1414,24 @@ class FactoringService(BaseService):
             if isinstance(value, str) and value.strip():
                 return value.strip()
         return None
+
+    async def get_provider_config(self) -> FactoringProviderConfigResponse:
+        provider = await self._require_provider()
+        periods = allowed_periods(provider.config)
+        rates = parse_discount_by_period(provider.config.get("discount_by_period"))
+        return FactoringProviderConfigResponse(
+            periods=periods,
+            discount_by_period={str(period): rates[period] for period in periods if period in rates},
+        )
+
+    @staticmethod
+    def _require_allowed_period(provider: FactoringProvider, period: int) -> None:
+        allowed = allowed_periods(provider.config)
+        if period not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"period={period} is not allowed. Allowed: {allowed}.",
+            )
 
     @staticmethod
     def _required_config_value(provider: FactoringProvider, key: str) -> str:
@@ -1266,6 +1465,70 @@ class FactoringService(BaseService):
         if len(normalized) != 12:
             return None
         return normalized
+
+    @staticmethod
+    def _extract_signer_iin(payload: dict[str, Any]) -> str | None:
+        signer = payload.get("signer") or {}
+        if not isinstance(signer, dict):
+            signer = {}
+        subject = signer.get("subject") or {}
+        if not isinstance(subject, dict):
+            subject = {}
+        top_subject = payload.get("subject") or {}
+        if not isinstance(top_subject, dict):
+            top_subject = {}
+        candidates: list[Any] = [
+            payload.get("dn_name"),
+            payload.get("dn"),
+            subject.get("iin"),
+            signer.get("iin"),
+            payload.get("iin"),
+            top_subject.get("iin"),
+        ]
+        for raw in candidates:
+            if not isinstance(raw, str) or not raw.strip():
+                continue
+            match = re.search(r"(?:SERIALNUMBER=IIN|IIN=)?(\d{12})", raw.replace(" ", ""), re.I)
+            if match:
+                return match.group(1)
+            digits = "".join(ch for ch in raw if ch.isdigit())
+            if len(digits) == 12:
+                return digits
+        return None
+
+    @classmethod
+    def _keep_terminal_webhook_status(cls, current: str | None, incoming: str) -> str:
+        current_upper = (current or "").upper()
+        if current_upper in TERMINAL_WEBHOOK_STATUSES and incoming.upper() != current_upper:
+            return current or incoming
+        return incoming
+
+    @classmethod
+    def _extract_issued_at(cls, payload: dict[str, Any]) -> str | None:
+        for key in ("issued_at", "issue_date", "issued_date"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
+
+    @staticmethod
+    def _redact_pii(value: Any) -> Any:
+        if isinstance(value, dict):
+            redacted: dict[str, Any] = {}
+            for key, item in value.items():
+                lowered = key.lower()
+                if (
+                    lowered in {"iin", "mobile_phone", "phone", "prop_iin", "prop_phone", "first_name", "last_name", "middle_name", "fio"}
+                    or lowered.endswith("_iin")
+                    or "phone" in lowered
+                ):
+                    redacted[key] = "***"
+                else:
+                    redacted[key] = FactoringService._redact_pii(item)
+            return redacted
+        if isinstance(value, list):
+            return [FactoringService._redact_pii(item) for item in value]
+        return value
 
     @staticmethod
     def _normalize_phone(raw_phone: str | None) -> str | None:
@@ -1321,7 +1584,7 @@ class FactoringService(BaseService):
             await writer(
                 factoring_id=factoring_id,
                 event_type=event_type,
-                payload=payload,
+                payload=self._redact_pii(payload),
                 source=source,
             )
         except Exception as exc:  # noqa: BLE001 — audit must not break main flow
@@ -1333,10 +1596,22 @@ class FactoringService(BaseService):
                 error=exc,
             )
 
-    async def _verify_webhook_auth_if_configured(self, authorization_header: str | None) -> None:
+    async def _require_webhook_credentials(self) -> FactoringWebhookCredential:
         credentials = await self.repository.get_provider_webhook_credentials(code=PROVIDER_CODE)
         if credentials is None:
-            return
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "Webhook credentials for FF_FACTORING are not configured. "
+                    "Cannot submit the application until webhook_username/password are set."
+                ),
+            )
+        return credentials
+
+    async def _verify_webhook_auth(self, authorization_header: str | None) -> None:
+        credentials = await self.repository.get_provider_webhook_credentials(code=PROVIDER_CODE)
+        if credentials is None:
+            raise self._invalid_webhook_credentials_exception()
 
         username, password = self._parse_basic_authorization_header(authorization_header)
         if username is None or password is None:

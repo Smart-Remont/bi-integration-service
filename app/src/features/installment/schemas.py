@@ -249,3 +249,4 @@ class WebhookAckResponse(BaseSchema):
     )
 
     ok: bool = Field(examples=[True])
+    status: bool = Field(default=True, examples=[True])

@@ -58,7 +58,7 @@ WEBHOOK_ISSUED = {
     "status": "ISSUED",
 }
 
-WEBHOOK_ACK_RESPONSE = {"ok": True}
+WEBHOOK_ACK_RESPONSE = {"ok": True, "status": True}
 
 CREATE_APPLICATION_BODY = {
     "default": {
