@@ -67,6 +67,13 @@ docker compose up --build
 
 В Docker Compose порт хоста `80` прокинут на порт приложения `8000`.
 
+Документация API после запуска (`http://localhost:8000`):
+
+- Swagger UI: `/docs`
+- Scalar: `/scalar`
+- ReDoc: `/redoc`
+- OpenAPI JSON: `/openapi.json`
+
 ## Основные entrypoints
 
 - `app/src/main.py` - создание FastAPI-приложения, lifecycle, CORS, exception handlers, подключение главного роутера.
