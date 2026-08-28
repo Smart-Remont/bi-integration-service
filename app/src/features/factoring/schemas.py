@@ -10,6 +10,9 @@ from .openapi_examples import (
     CREATE_APPLICATION_REQUEST,
     CREATE_APPLICATION_RESPONSE,
     WEBHOOK_ACK_RESPONSE,
+    WEBHOOK_APPROVED,
+    WEBHOOK_ISSUED,
+    WEBHOOK_REJECTED,
 )
 
 
@@ -239,7 +242,12 @@ class SendCessionResponse(BaseSchema):
 
 
 class FactoringWebhookPayload(BaseSchema):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
+            "examples": [WEBHOOK_APPROVED, WEBHOOK_REJECTED, WEBHOOK_ISSUED],
+        },
+    )
 
     uuid: str | None = None
     reference_id: str | None = None

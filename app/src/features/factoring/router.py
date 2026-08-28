@@ -10,9 +10,6 @@ from .openapi_examples import (
     APPLICATION_RESPONSES,
     CREATE_APPLICATION_RESPONSES,
     WEBHOOK_ACK_RESPONSES,
-    WEBHOOK_APPROVED,
-    WEBHOOK_ISSUED,
-    WEBHOOK_REJECTED,
 )
 from .schemas import (
     CreateFactoringApplicationResponse,
@@ -208,16 +205,7 @@ async def create_refund(
 )
 async def webhook_factoring(
     request: Request,
-    body: Annotated[
-        FactoringWebhookPayload,
-        Body(
-            openapi_examples={
-                "approved": {"summary": "APPROVED", "value": WEBHOOK_APPROVED},
-                "rejected": {"summary": "REJECTED", "value": WEBHOOK_REJECTED},
-                "issued": {"summary": "ISSUED", "value": WEBHOOK_ISSUED},
-            },
-        ),
-    ],
+    body: FactoringWebhookPayload,
     service: FactoringServiceDep,
 ) -> WebhookAckResponse:
     payload = body.model_dump()
