@@ -260,6 +260,36 @@ class FFRepository(BaseRepository):
 
         return InstallmentApplicationResponse.model_validate(payload)
 
+    async def get_deal_total_amount(self, client_request_id: int) -> Decimal | None:
+        row = await self.fetchrow(
+            """
+            SELECT price_total_area_material
+            FROM client_request_tab
+            WHERE client_request_id = $1
+            """,
+            client_request_id,
+        )
+        if row is None or row["price_total_area_material"] is None:
+            return None
+        return Decimal(str(row["price_total_area_material"]))
+
+    async def get_deal_committed_amount(
+        self,
+        client_request_id: int,
+        *,
+        exclude_application_id: int | None = None,
+    ) -> Decimal:
+        """Sum of active/issued principal across BOTH installment and
+        factoring for this deal (public.cr_deal_committed_amount, shared with
+        factoring/ff/repo.py). Several hunters can work the same deal in
+        parallel — their combined principal must not exceed the deal amount."""
+        row = await self.fetchrow(
+            "SELECT public.cr_deal_committed_amount($1, $2) AS committed",
+            client_request_id,
+            exclude_application_id,
+        )
+        return Decimal(str(row["committed"])) if row is not None else Decimal("0")
+
     async def client_request_exists(self, client_request_id: int) -> bool:
         rows = await self.call_sp(
             "public.installment__client_request_get_for_apply",

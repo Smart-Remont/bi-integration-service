@@ -1,12 +1,14 @@
 import base64
 import binascii
 import re
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from secrets import compare_digest, token_hex
 from tempfile import gettempdir
 from typing import Any
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from bcrypt import checkpw
@@ -26,6 +28,8 @@ from ..schemas import (
     FactoringSignDocument,
     PrepareFactoringDocumentsRequest,
     PrepareFactoringDocumentsResponse,
+    PrescoringFactoringRequest,
+    PrescoringFactoringResponse,
     PrintFormItem,
     SendCessionRequest,
     SendCessionResponse,
@@ -47,6 +51,11 @@ from .cession_placeholders import (
     build_cession_placeholders,
     parse_discount_by_period,
 )
+from .limits import (
+    parse_prescoring_max_limit,
+    parse_principal_limits,
+    phone_for_prescoring,
+)
 from .templates import PRINT_FORM_SPECS, fetch_template_bytes
 
 VALID_WEBHOOK_STATUSES = {"REJECTED", "APPROVED", "ALTERNATIVE", "ISSUED", "PENDING", "IN_PROGRESS"}
@@ -55,6 +64,16 @@ TERMINAL_WEBHOOK_STATUSES = {"ISSUED", "REJECTED", "REVERSED"}
 PRINT_FORMS_CACHE_DIR = Path(gettempdir()) / "factoring-print-forms"
 ALMATY_TZ = ZoneInfo("Asia/Almaty")
 CESSION_TEMPLATE_CODE = "FF_FACTORING_CESSION"
+
+
+@dataclass(frozen=True, slots=True)
+class _PrescoringOutcome:
+    status: str | None
+    score: float | None
+    message: str | None
+    max_limit: Decimal | None
+    skipped: bool
+    checked_at: datetime | None
 
 
 class FactoringService(BaseService):
@@ -67,6 +86,8 @@ class FactoringService(BaseService):
         office_public_url: str = "https://office.smartremont.kz",
         public_base_url: str = "https://devintegration.smart-remont.kz",
         nca_master_key: str = "",
+        prescoring_username: str = "",
+        prescoring_password: str = "",
     ) -> None:
         self.repository = repository
         self.client = client
@@ -75,6 +96,8 @@ class FactoringService(BaseService):
         self.office_public_url = office_public_url.rstrip("/")
         self.public_base_url = public_base_url.rstrip("/")
         self.nca_master_key = nca_master_key
+        self.prescoring_username = prescoring_username.strip()
+        self.prescoring_password = prescoring_password
 
     async def create_application(
         self,
@@ -84,6 +107,42 @@ class FactoringService(BaseService):
             status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
             detail="Use POST /applications/prepare then submit.",
         )
+
+    async def run_prescoring(
+        self,
+        request: PrescoringFactoringRequest,
+    ) -> PrescoringFactoringResponse:
+        provider = await self._require_provider()
+        if not await self.repository.client_request_exists(request.client_request_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"client_request_id={request.client_request_id} was not found.",
+            )
+        iin = self._normalize_iin(request.iin)
+        phone = self._normalize_phone(request.mobile_phone)
+        if iin is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid IIN: expected 12 digits.",
+            )
+        if phone is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid mobile_phone: expected Kazakhstan number (+7...).",
+            )
+        self._require_principal_limits(provider, request.principal)
+        partner = await self._require_partner_for_client_request(
+            provider, request.client_request_id
+        )
+        outcome = await self._run_prescoring(
+            provider=provider,
+            client_request_id=request.client_request_id,
+            iin=iin,
+            phone=phone,
+            partner=partner,
+            principal=request.principal,
+        )
+        return self._prescoring_response(outcome, request.principal)
 
     async def prepare_documents(
         self,
@@ -111,11 +170,37 @@ class FactoringService(BaseService):
                 detail="Invalid mobile_phone: expected Kazakhstan number (+7...).",
             )
 
+        self._require_principal_limits(provider, request.principal)
+        await self._require_deal_budget(request.client_request_id, request.principal)
+
         self._require_allowed_period(provider, request.period)
         product_id = request.product_id or self._required_config_value(provider, "default_product_id")
         partner = await self._require_partner_for_client_request(
             provider, request.client_request_id
         )
+        prescoring = await self._run_prescoring(
+            provider=provider,
+            client_request_id=request.client_request_id,
+            iin=iin,
+            phone=phone,
+            partner=partner,
+            principal=request.principal,
+        )
+        if not prescoring.skipped and prescoring.status == "REJECTED":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=prescoring.message or "Клиент не прошёл прескоринг (REJECTED).",
+            )
+        if not prescoring.skipped and prescoring.max_limit is not None:
+            if request.principal > prescoring.max_limit:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"Сумма {request.principal:,.0f} ₸ превышает лимит прескоринга "
+                        f"{prescoring.max_limit:,.0f} ₸."
+                    ).replace(",", " "),
+                )
+
         channel = self._required_config_value(provider, "channel")
         hook_url = self._required_config_value(provider, "hook_url")
         success_url = self._required_config_value(provider, "success_url")
@@ -182,6 +267,11 @@ class FactoringService(BaseService):
             failure_url=failure_url,
             hook_url=hook_url,
             status="WAITING_SIGN",
+            prescoring_status=prescoring.status,
+            prescoring_score=Decimal(str(prescoring.score)) if prescoring.score is not None else None,
+            prescoring_message=prescoring.message,
+            prescoring_max_limit=prescoring.max_limit,
+            prescoring_checked_at=prescoring.checked_at,
         )
         await self._log_event(
             "DOCUMENTS_PREPARED",
@@ -1419,10 +1509,228 @@ class FactoringService(BaseService):
         provider = await self._require_provider()
         periods = allowed_periods(provider.config)
         rates = parse_discount_by_period(provider.config.get("discount_by_period"))
+        principal_min, principal_max = parse_principal_limits(provider.config)
         return FactoringProviderConfigResponse(
             periods=periods,
             discount_by_period={str(period): rates[period] for period in periods if period in rates},
+            principal_min=principal_min,
+            principal_max=principal_max,
+            prescoring_enabled=self._is_prescoring_configured(provider),
         )
+
+    def _require_principal_limits(
+        self,
+        provider: FactoringProvider,
+        principal: Decimal,
+    ) -> None:
+        principal_min, principal_max = parse_principal_limits(provider.config)
+        if principal < principal_min:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Сумма займа {principal:,.0f} ₸ меньше минимальной "
+                    f"{principal_min:,.0f} ₸."
+                ).replace(",", " "),
+            )
+        if principal > principal_max:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Сумма займа {principal:,.0f} ₸ больше максимальной "
+                    f"{principal_max:,.0f} ₸."
+                ).replace(",", " "),
+            )
+
+    def _is_prescoring_configured(self, provider: FactoringProvider) -> bool:
+        base_url = provider.config.get("prescoring_base_url")
+        if not isinstance(base_url, str) or not base_url.strip():
+            return False
+        return bool(self.prescoring_username and self.prescoring_password)
+
+    @staticmethod
+    def _prescoring_required(provider: FactoringProvider) -> bool:
+        value = provider.config.get("prescoring_required")
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return True
+
+    @staticmethod
+    def _prescoring_timeout_sec(provider: FactoringProvider) -> float:
+        raw = provider.config.get("prescoring_timeout_sec", 15)
+        try:
+            timeout = float(raw)
+        except (TypeError, ValueError):
+            return 15.0
+        return max(3.0, min(timeout, 60.0))
+
+    def _prescoring_response(
+        self,
+        outcome: _PrescoringOutcome,
+        principal: Decimal,
+    ) -> PrescoringFactoringResponse:
+        if outcome.skipped or outcome.status is None:
+            return PrescoringFactoringResponse(
+                status=outcome.status or "SKIPPED",
+                score=outcome.score,
+                message=outcome.message,
+                max_limit=outcome.max_limit,
+                allowed=True,
+                skipped=True,
+            )
+        allowed = outcome.status == "APPROVED"
+        if allowed and outcome.max_limit is not None and principal > outcome.max_limit:
+            allowed = False
+        return PrescoringFactoringResponse(
+            status=outcome.status,
+            score=outcome.score,
+            message=outcome.message,
+            max_limit=outcome.max_limit,
+            allowed=allowed,
+            skipped=False,
+        )
+
+    async def _run_prescoring(
+        self,
+        *,
+        provider: FactoringProvider,
+        client_request_id: int,
+        iin: str,
+        phone: str,
+        partner: str,
+        principal: Decimal,
+    ) -> _PrescoringOutcome:
+        if not self._is_prescoring_configured(provider):
+            if self._prescoring_required(provider):
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=(
+                        "Prescoring не настроен: задайте config.prescoring_base_url и "
+                        "FACTORING_PRESCORING_USER/PASSWORD."
+                    ),
+                )
+            await self._log_event(
+                "PRESCORING_SKIPPED",
+                source="FF_FACTORING",
+                payload={"reason": "not_configured", "client_request_id": client_request_id},
+            )
+            return _PrescoringOutcome(None, None, None, None, True, None)
+
+        prescoring_phone = phone_for_prescoring(phone)
+        if prescoring_phone is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid mobile_phone for prescoring: expected 10 digits without +7.",
+            )
+
+        base_url = str(provider.config.get("prescoring_base_url", "")).strip().rstrip("/")
+        path = str(provider.config.get("prescoring_path", "/prescoring_factoring")).strip()
+        if not path.startswith("/"):
+            path = f"/{path}"
+        request_uuid = str(uuid4())
+        payload = {
+            "iin": iin,
+            "phone": prescoring_phone,
+            "uuid": request_uuid,
+            "partner": partner,
+            "principal": int(principal),
+        }
+        await self._log_event(
+            "PRESCORING_REQUEST",
+            source="FF_FACTORING",
+            payload={
+                "client_request_id": client_request_id,
+                "uuid": request_uuid,
+                "partner": partner,
+                "principal": str(principal),
+                "iin": "***",
+                "phone": "***",
+            },
+        )
+        try:
+            response_payload = await self.client.prescoring(
+                base_url=base_url,
+                path=path,
+                username=self.prescoring_username,
+                password=self.prescoring_password,
+                payload=payload,
+                timeout_sec=self._prescoring_timeout_sec(provider),
+            )
+        except FactoringClientError as exc:
+            await self._log_event(
+                "PRESCORING_FAILED",
+                source="FF_FACTORING",
+                payload={
+                    "client_request_id": client_request_id,
+                    "uuid": request_uuid,
+                    "error": exc.detail,
+                    "status_code": exc.status_code,
+                },
+            )
+            if self._prescoring_required(provider):
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Prescoring недоступен: {exc.detail}",
+                ) from exc
+            return _PrescoringOutcome(None, None, exc.detail, None, True, None)
+
+        status_value = str(response_payload.get("status") or "").upper()
+        score_raw = response_payload.get("score")
+        score = float(score_raw) if isinstance(score_raw, (int, float)) else None
+        message = response_payload.get("message")
+        message_text = message.strip() if isinstance(message, str) and message.strip() else None
+        max_limit = parse_prescoring_max_limit(response_payload.get("max_limit"))
+        checked_at = datetime.now(UTC)
+        outcome = _PrescoringOutcome(
+            status=status_value or None,
+            score=score,
+            message=message_text,
+            max_limit=max_limit,
+            skipped=False,
+            checked_at=checked_at,
+        )
+        await self._log_event(
+            "PRESCORING_RESULT",
+            source="FF_FACTORING",
+            payload={
+                "client_request_id": client_request_id,
+                "uuid": request_uuid,
+                "status": outcome.status,
+                "score": outcome.score,
+                "message": outcome.message,
+                "max_limit": str(outcome.max_limit) if outcome.max_limit is not None else None,
+            },
+        )
+        return outcome
+
+    async def _require_deal_budget(
+        self,
+        client_request_id: int,
+        principal: Decimal,
+        *,
+        exclude_application_id: int | None = None,
+    ) -> None:
+        """Несколько сотрудников могут параллельно оформлять рассрочку и/или
+        факторинг на одну сделку — сумма ВСЕХ их активных заявок не должна
+        превышать сумму сделки. Дешёвая проверка до MyNCA/банка; финальный
+        источник правды — SQL guard в factoring__application_create /
+        installment__application_create (public.cr_deal_committed_amount)."""
+        deal_total = await self.repository.get_deal_total_amount(client_request_id)
+        if deal_total is None or deal_total <= 0:
+            return
+        committed = await self.repository.get_deal_committed_amount(
+            client_request_id, exclude_application_id=exclude_application_id
+        )
+        if committed + principal > deal_total:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Сумма новой заявки {principal:,.0f} ₸ с учётом уже оформленных "
+                    f"заявок по сделке ({committed:,.0f} ₸) превышает сумму сделки "
+                    f"{deal_total:,.0f} ₸."
+                ).replace(",", " "),
+            )
 
     @staticmethod
     def _require_allowed_period(provider: FactoringProvider, period: int) -> None:

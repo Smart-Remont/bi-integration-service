@@ -130,6 +130,25 @@ class FactoringClient:
             resolve_ip=resolve_ip,
         )
 
+    async def prescoring(
+        self,
+        base_url: str,
+        path: str,
+        username: str,
+        password: str,
+        payload: dict[str, Any],
+        *,
+        timeout_sec: float = 15.0,
+    ) -> dict[str, Any]:
+        return await self._request(
+            method="POST",
+            base_url=base_url,
+            path=path,
+            json=payload,
+            auth=(username, password),
+            timeout_sec=timeout_sec,
+        )
+
     async def _request(
         self,
         method: str,
@@ -140,6 +159,8 @@ class FactoringClient:
         params: dict[str, str] | None = None,
         json: dict[str, Any] | None = None,
         resolve_ip: str | None = None,
+        auth: tuple[str, str] | None = None,
+        timeout_sec: float = 30.0,
     ) -> dict[str, Any]:
         logical_url = f"{base_url.rstrip('/')}{path}"
         if params:
@@ -163,13 +184,14 @@ class FactoringClient:
             body=self._mask_json_body(json),
         )
 
-        timeout = httpx.Timeout(timeout=30.0, connect=10.0)
+        timeout = httpx.Timeout(timeout=timeout_sec, connect=min(10.0, timeout_sec))
         try:
             async with httpx.AsyncClient(
                 base_url=connect_base,
                 timeout=timeout,
                 follow_redirects=True,
                 headers=outgoing_headers,
+                auth=auth,
             ) as client:
                 response = await client.request(
                     method=method,

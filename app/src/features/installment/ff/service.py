@@ -2,6 +2,7 @@ import base64
 import binascii
 import re
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from secrets import compare_digest
 from typing import Any
 
@@ -138,6 +139,12 @@ class FFService(BaseService):
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Invalid mobile_phone: expected Kazakhstan number (+7...).",
             )
+        if request.principal <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Сумма займа должна быть больше 0.",
+            )
+        await self._require_deal_budget(request.client_request_id, request.principal)
 
         application_id = await self.ff_repository.insert_application(
             client_request_id=request.client_request_id,
@@ -677,6 +684,34 @@ class FFService(BaseService):
             expires_at=expires_at,
         )
         return access_token
+
+    async def _require_deal_budget(
+        self,
+        client_request_id: int,
+        principal: Decimal,
+        *,
+        exclude_application_id: int | None = None,
+    ) -> None:
+        """Несколько сотрудников могут параллельно оформлять рассрочку и/или
+        факторинг на одну сделку — сумма ВСЕХ их активных заявок не должна
+        превышать сумму сделки. Дешёвая проверка до вызова FF; финальный
+        источник правды — SQL guard в installment__application_create /
+        factoring__application_create (public.cr_deal_committed_amount)."""
+        deal_total = await self.ff_repository.get_deal_total_amount(client_request_id)
+        if deal_total is None or deal_total <= 0:
+            return
+        committed = await self.ff_repository.get_deal_committed_amount(
+            client_request_id, exclude_application_id=exclude_application_id
+        )
+        if committed + principal > deal_total:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Сумма новой заявки {principal:,.0f} ₸ с учётом уже оформленных "
+                    f"заявок по сделке ({committed:,.0f} ₸) превышает сумму сделки "
+                    f"{deal_total:,.0f} ₸."
+                ).replace(",", " "),
+            )
 
     @staticmethod
     def _required_config_value(provider: FFProvider, key: str) -> str:

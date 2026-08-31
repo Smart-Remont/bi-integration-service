@@ -161,6 +161,11 @@ class FactoringRepository(BaseRepository):
         failure_url: str | None = None,
         hook_url: str | None = None,
         status: str = "NEW",
+        prescoring_status: str | None = None,
+        prescoring_score: Decimal | None = None,
+        prescoring_message: str | None = None,
+        prescoring_max_limit: Decimal | None = None,
+        prescoring_checked_at: datetime | None = None,
     ) -> int:
         payload: dict[str, Any] = {
             "client_request_id": client_request_id,
@@ -196,6 +201,16 @@ class FactoringRepository(BaseRepository):
             payload["failure_url"] = failure_url
         if hook_url is not None:
             payload["hook_url"] = hook_url
+        if prescoring_status is not None:
+            payload["prescoring_status"] = prescoring_status
+        if prescoring_score is not None:
+            payload["prescoring_score"] = str(prescoring_score)
+        if prescoring_message is not None:
+            payload["prescoring_message"] = prescoring_message
+        if prescoring_max_limit is not None:
+            payload["prescoring_max_limit"] = str(prescoring_max_limit)
+        if prescoring_checked_at is not None:
+            payload["prescoring_checked_at"] = prescoring_checked_at.isoformat()
 
         scalar_result = scalar_from_sp_rows(
             await self.call_sp(
@@ -321,6 +336,36 @@ class FactoringRepository(BaseRepository):
 
     async def client_request_exists(self, client_request_id: int) -> bool:
         return await self.get_client_request_contacts(client_request_id) is not None
+
+    async def get_deal_total_amount(self, client_request_id: int) -> Decimal | None:
+        row = await self.fetchrow(
+            """
+            SELECT price_total_area_material
+            FROM client_request_tab
+            WHERE client_request_id = $1
+            """,
+            client_request_id,
+        )
+        if row is None or row["price_total_area_material"] is None:
+            return None
+        return Decimal(str(row["price_total_area_material"]))
+
+    async def get_deal_committed_amount(
+        self,
+        client_request_id: int,
+        *,
+        exclude_application_id: int | None = None,
+    ) -> Decimal:
+        """Sum of active/issued principal across BOTH installment and
+        factoring for this deal (public.cr_deal_committed_amount, shared with
+        installment/ff/repo.py). Several hunters can work the same deal in
+        parallel — their combined principal must not exceed the deal amount."""
+        row = await self.fetchrow(
+            "SELECT public.cr_deal_committed_amount($1, $2) AS committed",
+            client_request_id,
+            exclude_application_id,
+        )
+        return Decimal(str(row["committed"])) if row is not None else Decimal("0")
 
     async def get_client_request_company_id(self, client_request_id: int) -> int | None:
         row = await self.fetchrow(

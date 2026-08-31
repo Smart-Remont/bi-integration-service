@@ -46,6 +46,25 @@ class PrepareFactoringDocumentsRequest(BaseSchema):
     is_knox: bool = False
 
 
+class PrescoringFactoringRequest(BaseSchema):
+    client_request_id: int = Field(examples=[2916069])
+    iin: str = Field(examples=["040516551071"])
+    mobile_phone: str = Field(examples=["+77072109025"])
+    principal: Decimal = Field(examples=[1000000])
+
+
+class PrescoringFactoringResponse(BaseSchema):
+    status: str = Field(description="APPROVED | REJECTED")
+    score: float | None = None
+    message: str | None = None
+    max_limit: Decimal | None = None
+    allowed: bool = Field(description="False when REJECTED or principal exceeds max_limit")
+    skipped: bool = Field(
+        default=False,
+        description="True when prescoring_required=false or service unavailable in dev",
+    )
+
+
 class FactoringSignDocument(BaseSchema):
     name: str
     title: str
@@ -152,6 +171,11 @@ class FactoringApplicationResponse(BaseSchema):
     refund_requested_at: datetime | None = None
     refund_completed_at: datetime | None = None
     client_request_credit_detail_id: int | None = None
+    prescoring_status: str | None = None
+    prescoring_score: Decimal | None = None
+    prescoring_message: str | None = None
+    prescoring_max_limit: Decimal | None = None
+    prescoring_checked_at: datetime | None = None
     created_by: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -165,6 +189,11 @@ class FactoringApplicationListResponse(BaseSchema):
 class FactoringProviderConfigResponse(BaseSchema):
     periods: list[int]
     discount_by_period: dict[str, Decimal]
+    principal_min: Decimal
+    principal_max: Decimal
+    prescoring_enabled: bool = Field(
+        description="True when prescoring_base_url and FACTORING_PRESCORING_* env are set",
+    )
 
 
 class CreateFactoringRefundRequest(BaseSchema):

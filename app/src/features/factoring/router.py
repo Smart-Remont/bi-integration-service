@@ -22,6 +22,8 @@ from .schemas import (
     FactoringWebhookPayload,
     PrepareFactoringDocumentsRequest,
     PrepareFactoringDocumentsResponse,
+    PrescoringFactoringRequest,
+    PrescoringFactoringResponse,
     SendCessionRequest,
     SendCessionResponse,
     SubmitFactoringApplicationRequest,
@@ -85,6 +87,24 @@ async def prepare_documents(
     service: FactoringServiceDep,
 ) -> PrepareFactoringDocumentsResponse:
     return await service.prepare_documents(request)
+
+
+@router.post(
+    "/applications/prescoring",
+    response_model=PrescoringFactoringResponse,
+    summary="Прескоринг клиента перед факторингом (Freedom ML)",
+    description=(
+        "Вызывает bank `prescoring_factoring` до prepare/submit. "
+        "Требует `config.prescoring_base_url` и env `FACTORING_PRESCORING_USER/PASSWORD`. "
+        "При `prescoring_required=false` недоступность сервиса не блокирует (dev)."
+    ),
+)
+async def prescoring_application(
+    _: FactoringBasicAuthDep,
+    request: PrescoringFactoringRequest,
+    service: FactoringServiceDep,
+) -> PrescoringFactoringResponse:
+    return await service.run_prescoring(request)
 
 
 @router.post(
