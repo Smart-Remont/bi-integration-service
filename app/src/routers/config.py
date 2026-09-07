@@ -3,6 +3,7 @@ class APIV1PrefixConfig:
     ddu_contractors: str = "/ddu_contractors"
     installment_ff: str = "/installment/ff"
     factoring_ff: str = "/factoring/ff"
+    storage: str = "/storage"
 
 
 class APIBigIntegrationPrefixConfig:

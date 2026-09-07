@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 import os
 from typing import List
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _env_bool(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes"}
 
 
 class BigIntegrationAuthConfig:
@@ -25,6 +31,19 @@ class FactoringAuthConfig:
     )
     password: str = os.getenv(
         "FACTORING_API_PASSWORD",
+        os.getenv("INSTALLMENT_API_PASSWORD", ""),
+    )
+
+
+class StorageAuthConfig:
+    """Basic auth for /api/v1/storage/*. Falls back to installment creds if unset."""
+
+    username: str = os.getenv(
+        "STORAGE_API_USER",
+        os.getenv("INSTALLMENT_API_USER", ""),
+    )
+    password: str = os.getenv(
+        "STORAGE_API_PASSWORD",
         os.getenv("INSTALLMENT_API_PASSWORD", ""),
     )
 
@@ -59,12 +78,6 @@ class MyncaConfig:
         "PUBLIC_BASE_URL",
         "https://devintegration.smart-remont.kz",
     )
-    # Company EDS keys used to sign cession (assignment) documents live encrypted
-    # in nca.company_key_store_tab (same DB, managed by the `myspace` admin app —
-    # see myspace-backend/nca/). We decrypt them in Postgres via
-    # nca.company_key_store__get_decrypted(id, master_key) — same master key as
-    # myspace's NCA_MASTER_KEY env var. Which key to use is resolved from
-    # client_request_tab.company_id → nca.company_key_store__read_by_company.
     nca_master_key: str = os.getenv("NCA_MASTER_KEY", "")
 
 
@@ -72,10 +85,70 @@ class AppConfig:
     env: str = os.getenv("APP_ENV", "stage")
 
 
+class MinioConfig:
+    """
+    MinIO / S3-compatible storage — same keys as smremont `application.ini` → minio.*.
+
+    storage_backend:
+      - office  — proxy upload to PHP `KanbanController::srfileUploadAction`
+      - minio   — direct PUT to MinIO (object key = documents/...)
+      - dual    — MinIO first, fallback to office proxy unless MINIO_STRICT=1
+    """
+
+    endpoint: str = os.getenv("MINIO_ENDPOINT", "").rstrip("/")
+    bucket: str = os.getenv("MINIO_BUCKET", "smartremont")
+    access_key: str = os.getenv("MINIO_ACCESS_KEY", "")
+    secret_key: str = os.getenv("MINIO_SECRET_KEY", "")
+    region: str = os.getenv("MINIO_REGION", "us-east-1")
+    strict: bool = _env_bool("MINIO_STRICT", "0")
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.endpoint and self.access_key and self.secret_key and self.bucket)
+
+
+class FileStoreConfig:
+    """
+    File storage for integrations-sr.
+
+    Public URLs: STORAGE_PUBLIC_URL + `/documents/...` (nginx/CDN → MinIO or office).
+    Office proxy: same contract as myspace `utils.data_storage.file_store`.
+    """
+
+    backend: str = os.getenv("STORAGE_BACKEND", os.getenv("MINIO_STORAGE_BACKEND", "office")).strip().lower()
+    public_base_url: str = os.getenv(
+        "STORAGE_PUBLIC_URL",
+        os.getenv("OFFICE_PUBLIC_URL", "https://office.smartremont.kz"),
+    ).rstrip("/")
+    base_url: str = os.getenv("FILE_STORE_BASE_URL", os.getenv("OFFICE_PUBLIC_URL", "")).rstrip("/")
+    upload_path: str = os.getenv("FILE_STORE_UPLOAD_PATH", "/kanban/srfile-upload")
+    username: str = os.getenv("FILE_STORE_USER", "python")
+    password: str = os.getenv("FILE_STORE_PASSWORD", "")
+    timeout_seconds: float = float(os.getenv("FILE_STORE_TIMEOUT_SECONDS", "120"))
+
+    @property
+    def upload_url(self) -> str:
+        return f"{self.base_url}{self.upload_path}"
+
+    @property
+    def uses_minio(self) -> bool:
+        return self.backend in {"minio", "dual"}
+
+    @property
+    def uses_office_proxy(self) -> bool:
+        return self.backend in {"office", "dual"}
+
+    def file_url(self, logical_path: str) -> str:
+        return f"{self.public_base_url}{logical_path}"
+
+
 cors_config = CORSConfig()
 big_integration_auth_config = BigIntegrationAuthConfig()
 installment_auth_config = InstallmentAuthConfig()
 factoring_auth_config = FactoringAuthConfig()
+storage_auth_config = StorageAuthConfig()
 factoring_prescoring_config = FactoringPrescoringConfig()
 mynca_config = MyncaConfig()
 app_config = AppConfig()
+minio_config = MinioConfig()
+file_store_config = FileStoreConfig()

@@ -36,6 +36,15 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "File Storage",
+        "description": (
+            "Загрузка файлов в Smart Remont storage: прямой MinIO (S3) или legacy-прокси "
+            "в PHP `KanbanController::srfileUploadAction`. Контракт `{filename, path, ext}` "
+            "совместим с myspace `file_store()`. Backend — `STORAGE_BACKEND` "
+            "(office | minio | dual), env `MINIO_*` как в smremont `application.ini`."
+        ),
+    },
+    {
         "name": "Health",
         "description": "Проверка живости сервиса (для liveness/readiness probe).",
     },
@@ -64,6 +73,7 @@ app = FastAPI(
         "- **Freedom Finance** — онлайн-рассрочка (`installment`) и факторинг (`factoring`), "
         "обе заявки хранятся в одной таблице `installment_application_tab` (`product_type`).\n"
         "- **MyNCA** — электронная подпись документов для факторинга.\n"
+        "- **File Storage** — MinIO / office proxy для `/documents/...` (`STORAGE_BACKEND`, `MINIO_*`).\n"
     ),
     version="0.1.0",
     lifespan=lifespan,

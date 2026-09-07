@@ -148,6 +148,57 @@ async def my_route(request: Request, _: BigIntegrationBasicAuthDep, service: MyS
 
 ---
 
+## File Storage (`/api/v1/storage`)
+
+Загрузка файлов в Smart Remont storage — MinIO (целевой путь) или legacy-прокси в PHP `KanbanController::srfileUploadAction`.
+
+### Env (зеркало smremont `application.ini` → `minio.*`)
+
+| Переменная | Назначение |
+|------------|------------|
+| `STORAGE_BACKEND` | `office` \| `minio` \| `dual` |
+| `STORAGE_PUBLIC_URL` | База для публичного URL (`+ /documents/...`) |
+| `MINIO_ENDPOINT` | S3 API, напр. `https://s3.smartremont.kz` |
+| `MINIO_BUCKET` | Бакет, напр. `smartremont` |
+| `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | Ключи приложения (не root) |
+| `MINIO_REGION` | `us-east-1` |
+| `MINIO_STRICT` | `1` — без fallback на office в `dual` |
+| `FILE_STORE_*` | Office proxy (`/kanban/srfile-upload`) |
+| `STORAGE_API_USER` / `STORAGE_API_PASSWORD` | Basic Auth API (fallback → installment) |
+
+### Backend
+
+- **`office`** — multipart → PHP srfile-upload (PHP сам пишет local/minio/dual).
+- **`minio`** — прямой PUT в MinIO, key = `documents/2026.09.07/...` (логика path из PHP).
+- **`dual`** — MinIO → при ошибке office proxy (если `MINIO_STRICT=0`).
+
+### HTTP
+
+```text
+GET  /api/v1/storage/config   — конфиг без секретов
+GET  /api/v1/storage/modes    — enum mode + описания
+POST /api/v1/storage/upload   — multipart: file + mode (form)
+```
+
+**Auth:** Basic (`STORAGE_API_*`).
+
+**Ответ upload (201):**
+
+```json
+{
+  "filename": "photo.jpg",
+  "path": "/documents/2026.09.07/material_photo/material_photo_orig_....jpg",
+  "ext": "jpg",
+  "fileUrl": "https://office.smartremont.kz/documents/..."
+}
+```
+
+Код: `app/src/features/storage/`, lib `app/src/storage/file_store.py`.
+
+Документация: `/scalar`, `/docs`.
+
+---
+
 ## Общие правила
 
 - Импорты: `from src....`
