@@ -6,7 +6,6 @@ UPLOAD_RESPONSE = {
 }
 
 MODES_RESPONSE = {
-    "backend": "minio",
     "publicBaseUrl": "https://office.smartremont.kz",
     "items": [
         {
@@ -24,11 +23,8 @@ MODES_RESPONSE = {
 }
 
 CONFIG_RESPONSE = {
-    "backend": "dual",
     "minioConfigured": True,
-    "officeProxyConfigured": True,
     "publicBaseUrl": "https://office.smartremont.kz",
     "minioEndpoint": "https://s3.smartremont.kz",
     "minioBucket": "smartremont",
-    "minioStrict": False,
 }

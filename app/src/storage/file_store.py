@@ -3,12 +3,11 @@ from __future__ import annotations
 from pathlib import PurePosixPath
 from typing import Any, BinaryIO, TypedDict
 
-import httpx
 from loguru import logger
 
 from src.config import file_store_config, minio_config
 from src.storage.minio_client import detect_content_type, put_object
-from src.storage.modes import build_logical_path, logical_path_to_object_key
+from src.storage.modes import FileStoreMode, build_logical_path, logical_path_to_object_key
 
 FilePayload = bytes | BinaryIO
 FileInput = tuple[str, FilePayload] | Any
@@ -19,6 +18,24 @@ class StoredFile(TypedDict):
     path: str
     ext: str
     file_url: str
+
+
+class UnknownFileStoreModeError(Exception):
+    def __init__(self, mode: str) -> None:
+        self.mode = mode
+        super().__init__(f"Unknown mode: {mode}")
+
+
+class MinioNotConfiguredError(Exception):
+    pass
+
+
+class MinioUploadError(Exception):
+    def __init__(self, mode: str, key: str, cause: Exception) -> None:
+        self.mode = mode
+        self.key = key
+        self.cause = cause
+        super().__init__(str(cause))
 
 
 async def _read_bytes(read) -> bytes:
@@ -59,130 +76,50 @@ def _stored_file(original_filename: str, logical_path: str, ext: str) -> StoredF
     }
 
 
-async def _file_store_minio(original_filename: str, content: bytes, mode: str) -> StoredFile | None:
-    ext = _extension(original_filename)
-    logical_path = build_logical_path(mode, ext)
+def _validate_mode(mode: str) -> FileStoreMode:
+    if not mode:
+        raise UnknownFileStoreModeError(mode)
+    try:
+        return FileStoreMode(mode)
+    except ValueError as exc:
+        raise UnknownFileStoreModeError(mode) from exc
+
+
+async def file_store(file: FileInput, mode: str) -> StoredFile:
+    """
+    Upload a file directly to MinIO (object key `documents/...`).
+
+    Raises:
+        UnknownFileStoreModeError: unsupported `mode`
+        MinioNotConfiguredError: MINIO_* env is missing
+        MinioUploadError: S3 PUT failed
+        TypeError: invalid file input
+    """
+    store_mode = _validate_mode(mode)
+
+    try:
+        filename, content = await _normalize_file(file)
+    except TypeError:
+        raise
+
+    ext = _extension(filename)
+    logical_path = build_logical_path(store_mode, ext)
     if logical_path is None:
-        logger.warning("file_store unknown mode for MinIO: {}", mode)
-        return None
+        raise UnknownFileStoreModeError(mode)
 
     if not minio_config.is_configured:
         logger.error("MinIO upload requested but MINIO_* env is not configured")
-        return None
+        raise MinioNotConfiguredError
 
     object_key = logical_path_to_object_key(logical_path)
     try:
         await put_object(
             key=object_key,
             body=content,
-            content_type=detect_content_type(original_filename),
+            content_type=detect_content_type(filename),
         )
     except Exception as exc:
         logger.error("file_store MinIO upload failed mode={} key={}: {}", mode, object_key, exc)
-        if minio_config.strict:
-            raise
-        return None
+        raise MinioUploadError(mode, object_key, exc) from exc
 
-    return _stored_file(original_filename, logical_path, ext)
-
-
-async def _file_store_office(file: FileInput, mode: str) -> StoredFile | None:
-    base_url = file_store_config.base_url.strip()
-    password = file_store_config.password
-    if not base_url or not password:
-        logger.error(
-            "file_store office proxy is not configured "
-            "(FILE_STORE_BASE_URL/OFFICE_PUBLIC_URL and FILE_STORE_PASSWORD are required)"
-        )
-        return None
-
-    try:
-        filename, content = await _normalize_file(file)
-    except TypeError as exc:
-        logger.error("file_store invalid file input: {}", exc)
-        return None
-
-    upload_url = file_store_config.upload_url
-    try:
-        async with httpx.AsyncClient(timeout=file_store_config.timeout_seconds) as client:
-            response = await client.post(
-                upload_url,
-                data={"mode": mode},
-                files={"myfiles[]": (filename, content)},
-                auth=(file_store_config.username, password),
-            )
-            response.raise_for_status()
-            parsed = _parse_office_response(response.json())
-            if parsed is None:
-                logger.error(
-                    "file_store unexpected office response from {}: {}",
-                    upload_url,
-                    response.text[:500],
-                )
-                return None
-            parsed["file_url"] = file_store_config.file_url(parsed["path"])
-            return parsed
-    except httpx.HTTPError as exc:
-        logger.error("file_store HTTP error for mode={} url={}: {}", mode, upload_url, exc)
-        return None
-    except ValueError as exc:
-        logger.error("file_store invalid JSON from {}: {}", upload_url, exc)
-        return None
-
-
-def _parse_office_response(data: object) -> StoredFile | None:
-    item: dict[str, object] | None = None
-    if isinstance(data, list) and data:
-        first = data[0]
-        if isinstance(first, dict):
-            item = first
-    elif isinstance(data, dict):
-        item = data
-
-    if item and item.get("path"):
-        return {
-            "filename": str(item.get("filename") or ""),
-            "path": str(item["path"]),
-            "ext": str(item.get("ext") or ""),
-            "file_url": "",
-        }
-    return None
-
-
-async def file_store(file: FileInput, mode: str) -> StoredFile | None:
-    """
-    Upload a file to Smart Remont storage.
-
-    Backend (`STORAGE_BACKEND`, same semantics as smremont `minio.storage_backend`):
-    - `office` — HTTP proxy to PHP `/kanban/srfile-upload` (legacy)
-    - `minio`  — direct MinIO PUT (`documents/...` key, like `Api_MinioStorage::putFileAs`)
-    - `dual`   — MinIO first, fallback to office unless `MINIO_STRICT=1`
-
-    Returns `{filename, path, ext, file_url}` compatible with myspace `file_store()`.
-    """
-    if not mode:
-        logger.warning("file_store called without mode")
-        return None
-
-    backend = file_store_config.backend
-    if backend not in {"office", "minio", "dual"}:
-        logger.error("file_store invalid STORAGE_BACKEND={}", backend)
-        return None
-
-    if backend in {"minio", "dual"}:
-        try:
-            filename, content = await _normalize_file(file)
-        except TypeError as exc:
-            logger.error("file_store invalid file input: {}", exc)
-            return None
-
-        stored = await _file_store_minio(filename, content, mode)
-        if stored is not None:
-            return stored
-        if backend == "minio":
-            return None
-
-    if backend in {"office", "dual"}:
-        return await _file_store_office(file, mode)
-
-    return None
+    return _stored_file(filename, logical_path, ext)

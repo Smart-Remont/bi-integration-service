@@ -8,10 +8,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def _env_bool(name: str, default: str = "0") -> bool:
-    return os.getenv(name, default).strip().lower() in {"1", "true", "yes"}
-
-
 class BigIntegrationAuthConfig:
     username: str = os.getenv("INTEGRATION_HS_BI_USER", "hs_bi")
     password: str = os.getenv("INTEGRATION_HS_BI_PASSWORD", "")
@@ -86,21 +82,13 @@ class AppConfig:
 
 
 class MinioConfig:
-    """
-    MinIO / S3-compatible storage — same keys as smremont `application.ini` → minio.*.
-
-    storage_backend:
-      - office  — proxy upload to PHP `KanbanController::srfileUploadAction`
-      - minio   — direct PUT to MinIO (object key = documents/...)
-      - dual    — MinIO first, fallback to office proxy unless MINIO_STRICT=1
-    """
+    """MinIO / S3-compatible storage — same keys as smremont `application.ini` → minio.*."""
 
     endpoint: str = os.getenv("MINIO_ENDPOINT", "").rstrip("/")
     bucket: str = os.getenv("MINIO_BUCKET", "smartremont")
     access_key: str = os.getenv("MINIO_ACCESS_KEY", "")
     secret_key: str = os.getenv("MINIO_SECRET_KEY", "")
     region: str = os.getenv("MINIO_REGION", "us-east-1")
-    strict: bool = _env_bool("MINIO_STRICT", "0")
 
     @property
     def is_configured(self) -> bool:
@@ -108,35 +96,12 @@ class MinioConfig:
 
 
 class FileStoreConfig:
-    """
-    File storage for integrations-sr.
+    """Public URLs for stored files: STORAGE_PUBLIC_URL + `/documents/...`."""
 
-    Public URLs: STORAGE_PUBLIC_URL + `/documents/...` (nginx/CDN → MinIO or office).
-    Office proxy: same contract as myspace `utils.data_storage.file_store`.
-    """
-
-    backend: str = os.getenv("STORAGE_BACKEND", os.getenv("MINIO_STORAGE_BACKEND", "office")).strip().lower()
     public_base_url: str = os.getenv(
         "STORAGE_PUBLIC_URL",
         os.getenv("OFFICE_PUBLIC_URL", "https://office.smartremont.kz"),
     ).rstrip("/")
-    base_url: str = os.getenv("FILE_STORE_BASE_URL", os.getenv("OFFICE_PUBLIC_URL", "")).rstrip("/")
-    upload_path: str = os.getenv("FILE_STORE_UPLOAD_PATH", "/kanban/srfile-upload")
-    username: str = os.getenv("FILE_STORE_USER", "python")
-    password: str = os.getenv("FILE_STORE_PASSWORD", "")
-    timeout_seconds: float = float(os.getenv("FILE_STORE_TIMEOUT_SECONDS", "120"))
-
-    @property
-    def upload_url(self) -> str:
-        return f"{self.base_url}{self.upload_path}"
-
-    @property
-    def uses_minio(self) -> bool:
-        return self.backend in {"minio", "dual"}
-
-    @property
-    def uses_office_proxy(self) -> bool:
-        return self.backend in {"office", "dual"}
 
     def file_url(self, logical_path: str) -> str:
         return f"{self.public_base_url}{logical_path}"

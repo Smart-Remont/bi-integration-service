@@ -26,10 +26,6 @@ class FileStoreModeItem(BaseSchema):
 
 
 class FileStoreModesResponse(BaseSchema):
-    backend: str = Field(
-        description="Текущий `STORAGE_BACKEND`: office | minio | dual",
-        examples=["minio"],
-    )
     public_base_url: str = Field(
         description="Базовый URL для `file_url`",
         examples=["https://office.smartremont.kz"],
@@ -39,15 +35,10 @@ class FileStoreModesResponse(BaseSchema):
 
 
 class FileStoreConfigResponse(BaseSchema):
-    backend: str = Field(examples=[CONFIG_RESPONSE["backend"]])
     minio_configured: bool = Field(description="Заданы MINIO_ENDPOINT, ACCESS_KEY, SECRET_KEY, BUCKET")
-    office_proxy_configured: bool = Field(
-        description="Заданы FILE_STORE_BASE_URL (или OFFICE_PUBLIC_URL) и FILE_STORE_PASSWORD"
-    )
-    public_base_url: str
+    public_base_url: str = Field(examples=[CONFIG_RESPONSE["publicBaseUrl"]])
     minio_endpoint: str | None = Field(default=None, description="MINIO_ENDPOINT (без секретов)")
     minio_bucket: str | None = Field(default=None, description="MINIO_BUCKET")
-    minio_strict: bool = Field(description="MINIO_STRICT=1 — без fallback на office proxy в dual")
 
 
 def build_modes_response() -> FileStoreModesResponse:
@@ -62,7 +53,6 @@ def build_modes_response() -> FileStoreModesResponse:
         for mode in FileStoreMode
     ]
     return FileStoreModesResponse(
-        backend=file_store_config.backend,
         public_base_url=file_store_config.public_base_url,
         items=items,
         total=len(items),

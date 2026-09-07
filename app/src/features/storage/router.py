@@ -3,7 +3,12 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from src.config import file_store_config, minio_config
 from src.routers.config import api_prefix_config
-from src.storage.file_store import file_store
+from src.storage.file_store import (
+    MinioNotConfiguredError,
+    MinioUploadError,
+    UnknownFileStoreModeError,
+    file_store,
+)
 from src.storage.modes import FileStoreMode
 
 from .auth import StorageBasicAuthDep
@@ -18,27 +23,27 @@ from .schemas import (
 router = APIRouter(prefix=api_prefix_config.v1.storage, tags=["File Storage"])
 
 
+def _allowed_modes_hint() -> str:
+    return ", ".join(mode.value for mode in FileStoreMode)
+
+
 @router.get(
     "/config",
     response_model=FileStoreConfigResponse,
-    summary="Текущая конфигурация хранилища (без секретов)",
+    summary="Текущая конфигурация MinIO (без секретов)",
     responses={
         200: {
-            "description": "Конфигурация backend и MinIO",
+            "description": "Конфигурация MinIO",
             "content": {"application/json": {"example": CONFIG_RESPONSE}},
         },
     },
 )
 async def get_storage_config(_: StorageBasicAuthDep) -> FileStoreConfigResponse:
-    office_ok = bool(file_store_config.base_url and file_store_config.password)
     return FileStoreConfigResponse(
-        backend=file_store_config.backend,
         minio_configured=minio_config.is_configured,
-        office_proxy_configured=office_ok,
         public_base_url=file_store_config.public_base_url,
         minio_endpoint=minio_config.endpoint or None,
         minio_bucket=minio_config.bucket if minio_config.is_configured else None,
-        minio_strict=minio_config.strict,
     )
 
 
@@ -48,7 +53,7 @@ async def get_storage_config(_: StorageBasicAuthDep) -> FileStoreConfigResponse:
     summary="Список режимов upload (mode) как в PHP srfileUploadAction",
     description=(
         "Каждый `mode` определяет каталог под `/documents/...` в MinIO "
-        "(object key `documents/...`). Контракт совместим с myspace `file_store(mode=...)`."
+        "(object key `documents/...`). Неизвестный `mode` на upload → HTTP 400."
     ),
     responses={
         200: {
@@ -65,16 +70,11 @@ async def list_storage_modes(_: StorageBasicAuthDep) -> FileStoreModesResponse:
     "/upload",
     response_model=FileUploadResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Загрузить файл в хранилище",
+    summary="Загрузить файл в MinIO",
     description=(
-        "## Backend\n\n"
-        "| `STORAGE_BACKEND` | Поведение |\n"
-        "|---|---|\n"
-        "| `office` | Прокси в PHP `/kanban/srfile-upload` (legacy) |\n"
-        "| `minio` | Прямой PUT в MinIO (`MINIO_*`, key `documents/...`) |\n"
-        "| `dual` | MinIO → при ошибке office proxy (если `MINIO_STRICT=0`) |\n\n"
-        "Multipart: поле `file` + form `mode`. Ответ `{filename, path, ext, file_url}` — "
-        "как myspace `utils.data_storage.file_store`."
+        "Прямой async PUT в MinIO (`MINIO_*`, object key `documents/...`). "
+        "Multipart: поле `file` + form `mode`. "
+        "Ответ `{filename, path, ext, file_url}` — как myspace `file_store()`."
     ),
     responses={
         201: {
@@ -82,19 +82,19 @@ async def list_storage_modes(_: StorageBasicAuthDep) -> FileStoreModesResponse:
             "content": {"application/json": {"example": UPLOAD_RESPONSE}},
         },
         400: {"description": "Пустой файл или неизвестный mode"},
-        502: {"description": "MinIO/office proxy недоступен или вернул неожиданный ответ"},
-        503: {"description": "Хранилище не сконфигурировано"},
+        502: {"description": "MinIO недоступен или вернул ошибку"},
+        503: {"description": "MinIO не сконфигурирован (MINIO_*)"},
     },
 )
 async def upload_file(
     _: StorageBasicAuthDep,
     file: Annotated[
         UploadFile,
-        File(description="Файл для загрузки (аналог PHP `myfiles[]`)"),
+        File(description="Файл для загрузки"),
     ],
     mode: Annotated[
-        FileStoreMode,
-        Form(description="Режим каталога — как form `mode` в srfile-upload"),
+        str,
+        Form(description=f"Режим каталога. Допустимые: {_allowed_modes_hint()}"),
     ],
 ) -> FileUploadResponse:
     if not file.filename:
@@ -104,22 +104,24 @@ async def upload_file(
     if not content:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file")
 
-    stored = await file_store((file.filename, content), mode.value)
-    if stored is None:
-        backend = file_store_config.backend
-        if backend == "minio" and not minio_config.is_configured:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="MinIO is not configured (MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY).",
-            )
-        if backend == "office" and not (file_store_config.base_url and file_store_config.password):
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Office file proxy is not configured (FILE_STORE_BASE_URL, FILE_STORE_PASSWORD).",
-            )
+    try:
+        stored = await file_store((file.filename, content), mode)
+    except UnknownFileStoreModeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown mode: {mode}. Allowed: {_allowed_modes_hint()}",
+        ) from None
+    except MinioNotConfiguredError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="MinIO is not configured (MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY).",
+        ) from None
+    except MinioUploadError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Upload failed for mode={mode.value}",
-        )
+            detail=f"MinIO upload failed for mode={exc.mode}",
+        ) from exc
+    except TypeError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return FileUploadResponse.model_validate(stored)
