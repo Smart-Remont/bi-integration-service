@@ -42,6 +42,9 @@ class FileStoreMode(StrEnum):
     DDU_COMMERCIAL_OFFER = "DDU_COMMERCIAL_OFFER"
     IT_SUPPORT_FILES = "IT_SUPPORT_FILES"
     REVIT_FILES = "REVIT_FILES"
+    CLIENT_REQUEST_DOC = "CLIENT_REQUEST_DOC"
+    LAYER = "LAYER"
+    DESIGN_ROOM = "DESIGN_ROOM"
 
 
 FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
@@ -77,6 +80,9 @@ FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
     FileStoreMode.DDU_COMMERCIAL_OFFER: "Коммерческое предложение ДДУ",
     FileStoreMode.IT_SUPPORT_FILES: "Файлы IT-поддержки",
     FileStoreMode.REVIT_FILES: "Файлы Revit",
+    FileStoreMode.CLIENT_REQUEST_DOC: "Документ заявки (дефекты)",
+    FileStoreMode.LAYER: "Слой пресета (constructor)",
+    FileStoreMode.DESIGN_ROOM: "Базовое фото комнаты (design_room)",
 }
 
 # Same folders/prefixes as KanbanController::srfileUploadAction.
@@ -114,6 +120,9 @@ MODE_PATH_TEMPLATES: dict[FileStoreMode, str] = {
     FileStoreMode.DDU_COMMERCIAL_OFFER: "/documents/{date}/ddu_commercial_offer/ddu_commercial_offer_{n}_{uniq}.{ext}",
     FileStoreMode.IT_SUPPORT_FILES: "/documents/{date}/it_support_files/it_support_file_{n}_{uniq}.{ext}",
     FileStoreMode.REVIT_FILES: "/documents/{date}/revit_files/revit_file_{n}_{uniq}.{ext}",
+    FileStoreMode.CLIENT_REQUEST_DOC: "/documents/{date}/client_request_docs/client_request_doc_{n}_{uniq}.{ext}",
+    FileStoreMode.LAYER: "/documents/{date}/layer/layer_{uniq}.{ext}",
+    FileStoreMode.DESIGN_ROOM: "/documents/{date}/design_room/design_room_{uniq}.{ext}",
 }
 
 
