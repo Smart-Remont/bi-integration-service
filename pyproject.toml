@@ -13,5 +13,6 @@ dependencies = [
     "loguru>=0.7.3",
     "pyhumps>=3.8.0",
     "python-dotenv>=1.2.2",
+    "scalar-fastapi>=1.8.2",
     "uvicorn>=0.48.0",
 ]

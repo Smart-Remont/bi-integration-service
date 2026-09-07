@@ -151,7 +151,7 @@ WEBHOOK_ISSUED = {
     },
 }
 
-WEBHOOK_ACK_RESPONSE = {"ok": True}
+WEBHOOK_ACK_RESPONSE = {"ok": True, "status": True}
 
 # Route-level OpenAPI fragments (Swagger shows these in Try it out / Examples dropdown)
 CREATE_APPLICATION_BODY = {

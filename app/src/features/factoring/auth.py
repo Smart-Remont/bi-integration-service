@@ -11,6 +11,11 @@ security = HTTPBasic()
 def verify_factoring_basic_auth(
     credentials: Annotated[HTTPBasicCredentials, Depends(security)],
 ) -> None:
+    if not (factoring_auth_config.username and factoring_auth_config.password):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Factoring API credentials are not configured.",
+        )
     username_ok = compare_digest(
         credentials.username.encode(),
         factoring_auth_config.username.encode(),

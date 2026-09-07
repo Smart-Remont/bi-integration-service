@@ -29,6 +29,13 @@ class FactoringAuthConfig:
     )
 
 
+class FactoringPrescoringConfig:
+    """HTTP Basic for bank prescoring_factoring (separate from JWT apply-lead)."""
+
+    username: str = os.getenv("FACTORING_PRESCORING_USER", "")
+    password: str = os.getenv("FACTORING_PRESCORING_PASSWORD", "")
+
+
 class CORSConfig:
     allow_origins: List[str] = [
         "http://localhost:3000",
@@ -69,5 +76,6 @@ cors_config = CORSConfig()
 big_integration_auth_config = BigIntegrationAuthConfig()
 installment_auth_config = InstallmentAuthConfig()
 factoring_auth_config = FactoringAuthConfig()
+factoring_prescoring_config = FactoringPrescoringConfig()
 mynca_config = MyncaConfig()
 app_config = AppConfig()

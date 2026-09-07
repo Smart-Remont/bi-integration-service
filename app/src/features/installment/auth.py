@@ -11,6 +11,11 @@ security = HTTPBasic()
 def verify_installment_basic_auth(
     credentials: Annotated[HTTPBasicCredentials, Depends(security)],
 ) -> None:
+    if not (installment_auth_config.username and installment_auth_config.password):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Installment API credentials are not configured.",
+        )
     username_ok = compare_digest(
         credentials.username.encode(),
         installment_auth_config.username.encode(),

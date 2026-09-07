@@ -3,6 +3,8 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from scalar_fastapi import get_scalar_api_reference
 from src.database import close_db_pool, init_db_pool
 from src.exceptions import register_infrastructure_handlers
 from src.routers import main_router
@@ -85,6 +87,15 @@ app.add_middleware(
 )
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/scalar", include_in_schema=False)
+async def scalar_docs() -> HTMLResponse:
+    return get_scalar_api_reference(
+        openapi_url=app.openapi_url or "/openapi.json",
+        title=app.title,
+        telemetry=False,
+    )
 
 
 app.include_router(main_router)

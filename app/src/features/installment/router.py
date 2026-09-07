@@ -1,21 +1,17 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Path, Request, status
+from fastapi import APIRouter, Path, Request, status
 from src.routers import api_prefix_config
 
 from .auth import InstallmentBasicAuthDep
 from .deps import FFServiceDep
 from .openapi_examples import (
     APPLICATION_RESPONSES,
-    CREATE_APPLICATION_BODY,
     CREATE_APPLICATION_RESPONSES,
     FF_PRODUCTS_RESPONSES,
     PROVIDER_PRODUCTS_RESPONSES,
     SYNC_PRODUCTS_RESPONSES,
     WEBHOOK_ACK_RESPONSES,
-    WEBHOOK_APPROVED,
-    WEBHOOK_ISSUED,
-    WEBHOOK_REJECTED,
 )
 from .schemas import (
     AllowedBankListResponse,
@@ -133,10 +129,7 @@ async def list_applications(
 )
 async def create_application(
     _: InstallmentBasicAuthDep,
-    request: Annotated[
-        CreateInstallmentApplicationRequest,
-        Body(openapi_examples=CREATE_APPLICATION_BODY),
-    ],
+    request: CreateInstallmentApplicationRequest,
     ff_service: FFServiceDep,
 ) -> CreateInstallmentApplicationResponse:
     return await ff_service.create_application(request)
@@ -208,32 +201,15 @@ async def poll_application(
     response_model=WebhookAckResponse,
     summary="Webhook от Freedom Finance",
     description=(
-        "Входящий hook от банка. Basic Auth — если настроены `webhook_username` / `webhook_password` у провайдера FF. "
+        "Входящий hook от банка. Basic Auth обязателен (`webhook_username` / `webhook_password` у провайдера FF). "
+        "Без кредов в БД hook отклоняется, заявку подать нельзя."
         "В Swagger выберите пример: approved / rejected / issued."
     ),
     responses=WEBHOOK_ACK_RESPONSES,
 )
 async def webhook_ff(
     request: Request,
-    body: Annotated[
-        FFWebhookPayload,
-        Body(
-            openapi_examples={
-                "approved": {
-                    "summary": "APPROVED — скоринг одобрил",
-                    "value": WEBHOOK_APPROVED,
-                },
-                "rejected": {
-                    "summary": "REJECTED — отказ",
-                    "value": WEBHOOK_REJECTED,
-                },
-                "issued": {
-                    "summary": "ISSUED — заём выдан",
-                    "value": WEBHOOK_ISSUED,
-                },
-            },
-        ),
-    ],
+    body: FFWebhookPayload,
     ff_service: FFServiceDep,
 ) -> WebhookAckResponse:
     payload = body.model_dump()
