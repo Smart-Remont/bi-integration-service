@@ -156,7 +156,7 @@ Async-загрузка файлов **только в MinIO** (без office pro
 
 | Переменная | Назначение |
 |------------|------------|
-| `STORAGE_PUBLIC_URL` | База для публичного URL (`+ /documents/...`) |
+| `STORAGE_PUBLIC_URL` | База для публичного URL (`+ /documents/...`). Пустое → `OFFICE_PUBLIC_URL` |
 | `MINIO_ENDPOINT` | S3 API, напр. `https://s3.smartremont.kz` |
 | `MINIO_BUCKET` | Бакет, напр. `smartremont` |
 | `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | Ключи приложения |

@@ -74,6 +74,12 @@ class MyncaConfig:
         "PUBLIC_BASE_URL",
         "https://devintegration.smart-remont.kz",
     )
+    # Company EDS keys used to sign cession (assignment) documents live encrypted
+    # in nca.company_key_store_tab (same DB, managed by the `myspace` admin app —
+    # see myspace-backend/nca/). We decrypt them in Postgres via
+    # nca.company_key_store__get_decrypted(id, master_key) — same master key as
+    # myspace's NCA_MASTER_KEY env var. Which key to use is resolved from
+    # client_request_tab.company_id → nca.company_key_store__read_by_company.
     nca_master_key: str = os.getenv("NCA_MASTER_KEY", "")
 
 
@@ -95,13 +101,22 @@ class MinioConfig:
         return bool(self.endpoint and self.access_key and self.secret_key and self.bucket)
 
 
+def _first_nonempty_env(*names: str, default: str) -> str:
+    for name in names:
+        value = (os.getenv(name) or "").strip()
+        if value:
+            return value.rstrip("/")
+    return default.rstrip("/")
+
+
 class FileStoreConfig:
     """Public URLs for stored files: STORAGE_PUBLIC_URL + `/documents/...`."""
 
-    public_base_url: str = os.getenv(
+    public_base_url: str = _first_nonempty_env(
         "STORAGE_PUBLIC_URL",
-        os.getenv("OFFICE_PUBLIC_URL", "https://office.smartremont.kz"),
-    ).rstrip("/")
+        "OFFICE_PUBLIC_URL",
+        default="https://office.smartremont.kz",
+    )
 
     def file_url(self, logical_path: str) -> str:
         return f"{self.public_base_url}{logical_path}"

@@ -16,7 +16,7 @@ MODES_RESPONSE = {
         {
             "mode": "REQUEST_DOCS",
             "description": "Документы заявки",
-            "pathTemplate": "/documents/{date}/request_docs/request_docs_{n}_{uniq}.{ext}",
+            "pathTemplate": "/documents/{date}/request_docs/request_docs{n}_{uniq}.{ext}",
         },
     ],
     "total": 2,

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import secrets
+import time
 from datetime import date
 from enum import StrEnum
-from uuid import uuid4
+from pathlib import PurePosixPath
 
 
 class FileStoreMode(StrEnum):
@@ -77,93 +79,70 @@ FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
     FileStoreMode.REVIT_FILES: "Файлы Revit",
 }
 
+# Same folders/prefixes as KanbanController::srfileUploadAction.
+# Placeholders: {date} Y.m.d, {n} 1-based file index, {uniq} PHP uniqid(..., true), {ext}.
+MODE_PATH_TEMPLATES: dict[FileStoreMode, str] = {
+    FileStoreMode.CARD_FILES: "/documents/{date}/card_files/card_file_{n}_{uniq}.{ext}",
+    FileStoreMode.MASTER_FILES: "/documents/{date}/master_files/master_files{n}_{uniq}.{ext}",
+    FileStoreMode.CHAT_FILES: "/documents/{date}/chat_files/chat_files{n}_{uniq}.{ext}",
+    FileStoreMode.CHAT_FILES_MINI: "/documents/{date}/chat_files/mini/chat_files{n}_{uniq}.{ext}",
+    FileStoreMode.RECIPIENT_FILES: "/documents/{date}/recipient_files/recipient_files{n}_{uniq}.{ext}",
+    FileStoreMode.CLIENT_AGREEMENT: "/documents/{date}/client_agreement/client_agreement{n}_{uniq}.{ext}",
+    FileStoreMode.FLAT_LIST: "/documents/{date}/flat_list/flat_list{n}_{uniq}.{ext}",
+    FileStoreMode.REMONT_INDICATOR: "/documents/{date}/remont_indicator/remont_indicator{n}_{uniq}.{ext}",
+    FileStoreMode.REQUEST_DOCS: "/documents/{date}/request_docs/request_docs{n}_{uniq}.{ext}",
+    FileStoreMode.MATERIAL_DOCS: "/documents/{date}/material_docs/material_docs{n}_{uniq}.{ext}",
+    FileStoreMode.PLANIROVKA_PHOTOS: "/documents/{date}/planirovka_photos/planirovka_photos{n}_{uniq}.{ext}",
+    FileStoreMode.FINANCE_PAYMENT: "/documents/{date}/finance_payment_files/finance_payment_files{n}_{uniq}.{ext}",
+    FileStoreMode.TEAM_MASTER: "/documents/{date}/team_master_files/team_master_files{n}_{uniq}.{ext}",
+    FileStoreMode.PROJECT_REMONT: "/documents/{date}/project_remont_files/project_remont_file_{uniq}.{ext}",
+    FileStoreMode.ORG_FILES: "/documents/{date}/org_files/org_files{n}_{uniq}.{ext}",
+    FileStoreMode.ACCESSION_CONTRACT_FILES: "/documents/{date}/accession_contract/accession_contract{n}_{uniq}.{ext}",
+    FileStoreMode.PROVIDER_DOCS: "/documents/{date}/provider_docs/doc_{uniq}.{ext}",
+    FileStoreMode.PARTNER_PROJECT_PHOTO: "/documents/{date}/partner_project_photo/photo_{uniq}.{ext}",
+    FileStoreMode.PARTNER_PROJECT_PHOTO_MINI: "/documents/{date}/partner_project_photo/mini/photo_mini_{uniq}.{ext}",
+    FileStoreMode.CONTRACTOR_LOGO: "/documents/contractor_logo/contractor_logo_{uniq}.{ext}",
+    FileStoreMode.SHOW_ROOM_PHOTO: "/documents/{date}/showroom_photos/show_room_photo_{uniq}.{ext}",
+    FileStoreMode.SHOW_ROOM_PHOTO_MINI: "/documents/{date}/showroom_photos/mini/show_room_photo_mini_{uniq}.{ext}",
+    FileStoreMode.MATERIAL_PHOTO: "/documents/{date}/material_photo/material_photo_orig_{uniq}.{ext}",
+    FileStoreMode.MATERIAL_PHOTO_MINI: "/documents/{date}/material_photo/mini/material_photo_{uniq}.{ext}",
+    FileStoreMode.ROOM_PHOTO: "/documents/{date}/design_room/room_photo_{uniq}.{ext}",
+    FileStoreMode.KITCHEN_SCHEM: "/documents/{date}/kitchen_schem/schem_{uniq}.{ext}",
+    FileStoreMode.PRESET_KIT_PHOTO: "/documents/{date}/preset_kit_photos/original/preset_kit_photo{uniq}.{ext}",
+    FileStoreMode.PRESET_KIT_PHOTO_MINI: "/documents/{date}/preset_kit_photos/preset_kit_photo{uniq}.{ext}",
+    FileStoreMode.PRESET_KIT_PRESENTATION: "/documents/{date}/preset_kit_presentation_files/preset_kit_presentation{uniq}.{ext}",
+    FileStoreMode.DDU_COMMERCIAL_OFFER: "/documents/{date}/ddu_commercial_offer/ddu_commercial_offer_{n}_{uniq}.{ext}",
+    FileStoreMode.IT_SUPPORT_FILES: "/documents/{date}/it_support_files/it_support_file_{n}_{uniq}.{ext}",
+    FileStoreMode.REVIT_FILES: "/documents/{date}/revit_files/revit_file_{n}_{uniq}.{ext}",
+}
 
-def _today_segment() -> str:
-    return date.today().strftime("%Y.%m.%d")
+
+def php_uniqid(prefix: str = "") -> str:
+    """PHP `uniqid($prefix, true)`: 13 hex timestamp + `.` + 8 digits."""
+    now = time.time()
+    seconds = int(now)
+    microseconds = int((now - seconds) * 1_000_000)
+    entropy = secrets.randbelow(100_000_000)
+    return f"{prefix}{seconds:08x}{microseconds:05x}.{entropy:08d}"
 
 
-def _uniq(prefix: str) -> str:
-    return f"{prefix}{uuid4()}"
+def filename_extension(filename: str) -> str:
+    """Same as PHP `pathinfo(..., PATHINFO_EXTENSION)` — case preserved."""
+    return PurePosixPath(filename).suffix.lstrip(".")
 
 
-def build_logical_path(mode: FileStoreMode | str, ext: str, *, index: int = 1) -> str | None:
-    """
-    Build `/documents/...` path exactly like `KanbanController::srfileUploadAction`.
-    Returns None for unknown mode.
-    """
-    ext = ext.lstrip(".").lower()
-    day = _today_segment()
-    c = index
+def path_template(mode: FileStoreMode) -> str:
+    return MODE_PATH_TEMPLATES[mode]
 
-    match str(mode):
-        case FileStoreMode.CARD_FILES:
-            path = f"/documents/{day}/card_files/{_uniq(f'card_file_{c}_')}.{ext}"
-        case FileStoreMode.MASTER_FILES:
-            path = f"/documents/{day}/master_files/{_uniq(f'master_files{c}_')}.{ext}"
-        case FileStoreMode.CHAT_FILES:
-            path = f"/documents/{day}/chat_files/{_uniq(f'chat_files{c}_')}.{ext}"
-        case FileStoreMode.CHAT_FILES_MINI:
-            path = f"/documents/{day}/chat_files/mini/{_uniq(f'chat_files{c}_')}.{ext}"
-        case FileStoreMode.RECIPIENT_FILES:
-            path = f"/documents/{day}/recipient_files/{_uniq(f'recipient_files{c}_')}.{ext}"
-        case FileStoreMode.CLIENT_AGREEMENT:
-            path = f"/documents/{day}/client_agreement/{_uniq(f'client_agreement{c}_')}.{ext}"
-        case FileStoreMode.FLAT_LIST:
-            path = f"/documents/{day}/flat_list/{_uniq(f'flat_list{c}_')}.{ext}"
-        case FileStoreMode.REMONT_INDICATOR:
-            path = f"/documents/{day}/remont_indicator/{_uniq(f'remont_indicator{c}_')}.{ext}"
-        case FileStoreMode.REQUEST_DOCS:
-            path = f"/documents/{day}/request_docs/{_uniq(f'request_docs{c}_')}.{ext}"
-        case FileStoreMode.MATERIAL_DOCS:
-            path = f"/documents/{day}/material_docs/{_uniq(f'material_docs{c}_')}.{ext}"
-        case FileStoreMode.PLANIROVKA_PHOTOS:
-            path = f"/documents/{day}/planirovka_photos/{_uniq(f'planirovka_photos{c}_')}.{ext}"
-        case FileStoreMode.FINANCE_PAYMENT:
-            path = f"/documents/{day}/finance_payment_files/{_uniq(f'finance_payment_files{c}_')}.{ext}"
-        case FileStoreMode.TEAM_MASTER:
-            path = f"/documents/{day}/team_master_files/{_uniq(f'team_master_files{c}_')}.{ext}"
-        case FileStoreMode.PROJECT_REMONT:
-            path = f"/documents/{day}/project_remont_files/{_uniq('project_remont_file_')}.{ext}"
-        case FileStoreMode.ORG_FILES:
-            path = f"/documents/{day}/org_files/{_uniq(f'org_files{c}_')}.{ext}"
-        case FileStoreMode.ACCESSION_CONTRACT_FILES:
-            path = f"/documents/{day}/accession_contract/{_uniq(f'accession_contract{c}_')}.{ext}"
-        case FileStoreMode.PROVIDER_DOCS:
-            path = f"/documents/{day}/provider_docs/{_uniq('doc_')}.{ext}"
-        case FileStoreMode.PARTNER_PROJECT_PHOTO:
-            path = f"/documents/{day}/partner_project_photo/{_uniq('photo_')}.{ext}"
-        case FileStoreMode.PARTNER_PROJECT_PHOTO_MINI:
-            path = f"/documents/{day}/partner_project_photo/mini/{_uniq('photo_mini_')}.{ext}"
-        case FileStoreMode.CONTRACTOR_LOGO:
-            path = f"/documents/contractor_logo/{_uniq('contractor_logo_')}.{ext}"
-        case FileStoreMode.SHOW_ROOM_PHOTO:
-            path = f"/documents/{day}/showroom_photos/{_uniq('show_room_photo_')}.{ext}"
-        case FileStoreMode.SHOW_ROOM_PHOTO_MINI:
-            path = f"/documents/{day}/showroom_photos/mini/{_uniq('show_room_photo_mini_')}.{ext}"
-        case FileStoreMode.MATERIAL_PHOTO:
-            path = f"/documents/{day}/material_photo/{_uniq('material_photo_orig_')}.{ext}"
-        case FileStoreMode.MATERIAL_PHOTO_MINI:
-            path = f"/documents/{day}/material_photo/mini/{_uniq('material_photo_')}.{ext}"
-        case FileStoreMode.ROOM_PHOTO:
-            path = f"/documents/{day}/design_room/{_uniq('room_photo_')}.{ext}"
-        case FileStoreMode.KITCHEN_SCHEM:
-            path = f"/documents/{day}/kitchen_schem/{_uniq('schem_')}.{ext}"
-        case FileStoreMode.PRESET_KIT_PHOTO:
-            path = f"/documents/{day}/preset_kit_photos/original/{_uniq('preset_kit_photo')}.{ext}"
-        case FileStoreMode.PRESET_KIT_PHOTO_MINI:
-            path = f"/documents/{day}/preset_kit_photos/{_uniq('preset_kit_photo')}.{ext}"
-        case FileStoreMode.PRESET_KIT_PRESENTATION:
-            path = f"/documents/{day}/preset_kit_presentation_files/{_uniq('preset_kit_presentation')}.{ext}"
-        case FileStoreMode.DDU_COMMERCIAL_OFFER:
-            path = f"/documents/{day}/ddu_commercial_offer/{_uniq(f'ddu_commercial_offer_{c}_')}.{ext}"
-        case FileStoreMode.IT_SUPPORT_FILES:
-            path = f"/documents/{day}/it_support_files/{_uniq(f'it_support_file_{c}_')}.{ext}"
-        case FileStoreMode.REVIT_FILES:
-            path = f"/documents/{day}/revit_files/{_uniq(f'revit_file_{c}_')}.{ext}"
-        case _:
-            return None
 
-    return path
+def build_logical_path(mode: FileStoreMode, ext: str, *, index: int = 1) -> str:
+    """Build `/documents/...` path like `KanbanController::srfileUploadAction`."""
+    return MODE_PATH_TEMPLATES[mode].format(
+        date=date.today().strftime("%Y.%m.%d"),
+        n=index,
+        uniq=php_uniqid(),
+        ext=ext,
+    )
 
 
 def logical_path_to_object_key(logical_path: str) -> str:

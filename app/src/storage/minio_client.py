@@ -15,9 +15,6 @@ def detect_content_type(filename: str) -> str:
 
 
 async def put_object(*, key: str, body: bytes, content_type: str | None = None) -> None:
-    if not minio_config.is_configured:
-        raise RuntimeError("MinIO is not configured (MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY)")
-
     normalized_key = key.lstrip("/")
     session = aioboto3.Session()
     async with session.client(

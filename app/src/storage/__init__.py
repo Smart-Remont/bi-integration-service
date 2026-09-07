@@ -5,7 +5,7 @@ from .file_store import (
     UnknownFileStoreModeError,
     file_store,
 )
-from .modes import FileStoreMode, build_logical_path
+from .modes import FileStoreMode
 
 __all__ = [
     "FileStoreMode",
@@ -13,6 +13,5 @@ __all__ = [
     "MinioUploadError",
     "StoredFile",
     "UnknownFileStoreModeError",
-    "build_logical_path",
     "file_store",
 ]

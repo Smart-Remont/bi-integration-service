@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from pathlib import PurePosixPath
-from typing import Any, BinaryIO, TypedDict
+from typing import TypedDict
 
 from loguru import logger
 
 from src.config import file_store_config, minio_config
 from src.storage.minio_client import detect_content_type, put_object
-from src.storage.modes import FileStoreMode, build_logical_path, logical_path_to_object_key
-
-FilePayload = bytes | BinaryIO
-FileInput = tuple[str, FilePayload] | Any
+from src.storage.modes import (
+    FileStoreMode,
+    build_logical_path,
+    filename_extension,
+    logical_path_to_object_key,
+)
 
 
 class StoredFile(TypedDict):
@@ -38,44 +39,6 @@ class MinioUploadError(Exception):
         super().__init__(str(cause))
 
 
-async def _read_bytes(read) -> bytes:
-    content = read()
-    if hasattr(content, "__await__"):
-        content = await content
-    if not isinstance(content, bytes):
-        raise TypeError("File read() must return bytes")
-    return content
-
-
-async def _normalize_file(file: FileInput) -> tuple[str, bytes]:
-    if isinstance(file, tuple):
-        name, payload = file
-        if isinstance(payload, bytes):
-            return name, payload
-        if hasattr(payload, "read"):
-            return name, await _read_bytes(payload.read)
-        raise TypeError("Unsupported file payload type in tuple")
-
-    filename = getattr(file, "filename", None) or getattr(file, "name", None) or "file"
-    if not hasattr(file, "read"):
-        raise TypeError("Unsupported file input: expected UploadFile or (name, bytes) tuple")
-    return filename, await _read_bytes(file.read)
-
-
-def _extension(filename: str) -> str:
-    ext = PurePosixPath(filename).suffix.lstrip(".").lower()
-    return ext
-
-
-def _stored_file(original_filename: str, logical_path: str, ext: str) -> StoredFile:
-    return {
-        "filename": original_filename,
-        "path": logical_path,
-        "ext": ext,
-        "file_url": file_store_config.file_url(logical_path),
-    }
-
-
 def _validate_mode(mode: str) -> FileStoreMode:
     if not mode:
         raise UnknownFileStoreModeError(mode)
@@ -85,7 +48,7 @@ def _validate_mode(mode: str) -> FileStoreMode:
         raise UnknownFileStoreModeError(mode) from exc
 
 
-async def file_store(file: FileInput, mode: str) -> StoredFile:
+async def file_store(filename: str, content: bytes, mode: str) -> StoredFile:
     """
     Upload a file directly to MinIO (object key `documents/...`).
 
@@ -93,24 +56,14 @@ async def file_store(file: FileInput, mode: str) -> StoredFile:
         UnknownFileStoreModeError: unsupported `mode`
         MinioNotConfiguredError: MINIO_* env is missing
         MinioUploadError: S3 PUT failed
-        TypeError: invalid file input
     """
     store_mode = _validate_mode(mode)
-
-    try:
-        filename, content = await _normalize_file(file)
-    except TypeError:
-        raise
-
-    ext = _extension(filename)
-    logical_path = build_logical_path(store_mode, ext)
-    if logical_path is None:
-        raise UnknownFileStoreModeError(mode)
-
     if not minio_config.is_configured:
         logger.error("MinIO upload requested but MINIO_* env is not configured")
         raise MinioNotConfiguredError
 
+    ext = filename_extension(filename)
+    logical_path = build_logical_path(store_mode, ext)
     object_key = logical_path_to_object_key(logical_path)
     try:
         await put_object(
@@ -122,4 +75,9 @@ async def file_store(file: FileInput, mode: str) -> StoredFile:
         logger.error("file_store MinIO upload failed mode={} key={}: {}", mode, object_key, exc)
         raise MinioUploadError(mode, object_key, exc) from exc
 
-    return _stored_file(filename, logical_path, ext)
+    return {
+        "filename": filename,
+        "path": logical_path,
+        "ext": ext.lower(),
+        "file_url": file_store_config.file_url(logical_path),
+    }

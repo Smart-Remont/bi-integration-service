@@ -81,9 +81,31 @@ async def list_storage_modes(_: StorageBasicAuthDep) -> FileStoreModesResponse:
             "description": "Файл сохранён",
             "content": {"application/json": {"example": UPLOAD_RESPONSE}},
         },
-        400: {"description": "Пустой файл или неизвестный mode"},
-        502: {"description": "MinIO недоступен или вернул ошибку"},
-        503: {"description": "MinIO не сконфигурирован (MINIO_*)"},
+        400: {
+            "description": "Пустой файл или неизвестный mode",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "unknown_mode": {"value": {"detail": "Unknown mode: NOPE. Allowed: CARD_FILES, ..."}},
+                        "empty_file": {"value": {"detail": "Empty file"}},
+                    }
+                }
+            },
+        },
+        502: {
+            "description": "MinIO недоступен или вернул ошибку",
+            "content": {"application/json": {"example": {"detail": "MinIO upload failed for mode=MATERIAL_PHOTO"}}},
+        },
+        503: {
+            "description": "MinIO не сконфигурирован (MINIO_*)",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "MinIO is not configured (MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY)."
+                    }
+                }
+            },
+        },
     },
 )
 async def upload_file(
@@ -105,7 +127,7 @@ async def upload_file(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file")
 
     try:
-        stored = await file_store((file.filename, content), mode)
+        stored = await file_store(file.filename, content, mode)
     except UnknownFileStoreModeError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -121,7 +143,5 @@ async def upload_file(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"MinIO upload failed for mode={exc.mode}",
         ) from exc
-    except TypeError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return FileUploadResponse.model_validate(stored)
