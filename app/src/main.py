@@ -10,6 +10,7 @@ from src.exceptions import register_infrastructure_handlers
 from src.routers import main_router
 
 from .config import cors_config
+from .openapi_config import configure_openapi
 
 OPENAPI_TAGS = [
     {
@@ -131,6 +132,7 @@ app = FastAPI(
     redirect_slashes=False,
     openapi_tags=OPENAPI_TAGS,
 )
+configure_openapi(app)
 register_infrastructure_handlers(app)
 app.add_middleware(
     CORSMiddleware,

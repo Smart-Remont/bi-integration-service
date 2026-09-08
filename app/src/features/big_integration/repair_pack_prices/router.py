@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object
+from ..openapi_examples import REPAIR_PACK_PRICES_BODY, REPAIR_PACK_PRICES_RESPONSE
 from .deps import RepairPackPricesServiceDep
 
 router = APIRouter()
@@ -15,6 +16,8 @@ router = APIRouter()
         "**БД:** `ddu_repair_pack_info__get` (на каждый GUID)\n\n"
         "До 10 000 `placementUUIDs`; ошибка по одному элементу не прерывает batch."
     ),
+    openapi_extra=REPAIR_PACK_PRICES_BODY,
+    responses=REPAIR_PACK_PRICES_RESPONSE,
 )
 async def repair_pack_prices(
     request: Request,

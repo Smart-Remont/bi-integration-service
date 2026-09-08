@@ -22,6 +22,20 @@ _PLAIN_CRON_RESPONSES: dict[int | str, dict[str, Any]] = {
 }
 
 
+def json_request_body(example: dict[str, Any] | list[Any]) -> dict[str, Any]:
+    """OpenAPI requestBody with JSON example (handler may still use raw Request)."""
+    return {
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "example": example,
+                },
+            },
+        },
+    }
+
+
 def legacy_integration_path(action: str) -> str:
     """Zend route: IntegrationController → /integration/{action}."""
     return f"\n\n**Legacy PHP:** `/integration/{action}` (`IntegrationController.php`)."

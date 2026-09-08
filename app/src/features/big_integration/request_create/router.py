@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object_ru
+from ..openapi_examples import REQUEST_CREATE_V3_BODY, REQUEST_CREATE_V3_RESPONSE
 from .deps import RequestCreateServiceDep
 
 router = APIRouter()
@@ -16,6 +17,8 @@ router = APIRouter()
         "→ `ddu__request_get`. Оставлено тонким прокси на случай, если старый URL ещё вызывается BIG."
     ),
     deprecated=True,
+    openapi_extra=REQUEST_CREATE_V3_BODY,
+    responses=REQUEST_CREATE_V3_RESPONSE,
 )
 async def request_create(
     request: Request,

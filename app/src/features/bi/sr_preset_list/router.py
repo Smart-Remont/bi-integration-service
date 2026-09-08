@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import legacy_http_host, read_json_object
-from ..openapi_examples import LEGACY_BI_RESPONSE
+from ..openapi_examples import (
+    SR_PRESET_LIST_BODY,
+    SR_PRESET_LIST_RESPONSE,
+)
 from src.openapi_helpers import integration_controller_description
 from .deps import SrPresetListServiceDep
 
@@ -20,7 +23,8 @@ router = APIRouter()
         url_action="sr-preset-list",
         php_method="srPresetListAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=SR_PRESET_LIST_BODY,
+    responses=SR_PRESET_LIST_RESPONSE,
 )
 async def sr_preset_list(
     request: Request,

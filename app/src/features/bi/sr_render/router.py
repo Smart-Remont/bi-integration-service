@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object
-from ..openapi_examples import LEGACY_BI_RESPONSE
+from ..openapi_examples import (
+    SR_RENDER_BODY,
+    SR_RENDER_RESPONSE,
+)
 from src.openapi_helpers import integration_controller_description
 from .deps import SrRenderServiceDep
 
@@ -18,7 +21,8 @@ router = APIRouter()
         url_action="sr-render",
         php_method="srRenderAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=SR_RENDER_BODY,
+    responses=SR_RENDER_RESPONSE,
 )
 async def sr_render(
     request: Request,

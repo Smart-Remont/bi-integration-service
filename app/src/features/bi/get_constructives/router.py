@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object
-from ..openapi_examples import LEGACY_BI_RESPONSE
+from ..openapi_examples import (
+    GET_CONSTRUCTIVES_BODY,
+    GET_CONSTRUCTIVES_RESPONSE,
+)
 from src.openapi_helpers import integration_controller_description
 from .deps import GetConstructivesServiceDep
 
@@ -18,7 +21,8 @@ router = APIRouter()
         url_action="get-constructives",
         php_method="getConstructivesAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=GET_CONSTRUCTIVES_BODY,
+    responses=GET_CONSTRUCTIVES_RESPONSE,
 )
 async def get_constructives(
     request: Request,

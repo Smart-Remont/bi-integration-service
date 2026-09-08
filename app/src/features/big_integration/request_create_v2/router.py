@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object_ru
+from ..openapi_examples import REQUEST_CREATE_V3_BODY, REQUEST_CREATE_V3_RESPONSE
 from .deps import RequestCreateV2ServiceDep
 
 router = APIRouter()
@@ -16,6 +17,8 @@ router = APIRouter()
         "но ответ без поля `client_request_id`."
     ),
     deprecated=True,
+    openapi_extra=REQUEST_CREATE_V3_BODY,
+    responses=REQUEST_CREATE_V3_RESPONSE,
 )
 async def request_create_v2(
     request: Request,

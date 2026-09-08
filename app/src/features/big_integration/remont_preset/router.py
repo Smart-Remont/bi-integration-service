@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object_ru
+from ..openapi_examples import REMONT_PRESET_BODY, REMONT_PRESET_RESPONSE
 from ..preset.validators import validate_placement_uuid, validate_preset_id
 from ..responses import big_integration_error_response
 from .deps import RemontPresetServiceDep
@@ -19,6 +20,8 @@ _METHOD_NOT_ALLOWED = "Неподдерживаемый метод"
         "**БД:** `ddu__preset_list_v2`, `render_filling__section__read`, "
         "`render_filling__*` (компактные sets)"
     ),
+    openapi_extra=REMONT_PRESET_BODY,
+    responses=REMONT_PRESET_RESPONSE,
 )
 async def remont_preset(
     request: Request,

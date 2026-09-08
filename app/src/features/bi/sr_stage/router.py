@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_array
-from ..openapi_examples import LEGACY_BI_RESPONSE
+from ..openapi_examples import (
+    SR_STAGE_BODY,
+    SR_STAGE_RESPONSE,
+)
 from src.openapi_helpers import integration_controller_description
 from .deps import SrStageServiceDep
 
@@ -19,7 +22,8 @@ router = APIRouter()
         url_action="sr-stage",
         php_method="srStageAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=SR_STAGE_BODY,
+    responses=SR_STAGE_RESPONSE,
 )
 async def sr_stage(
     request: Request,

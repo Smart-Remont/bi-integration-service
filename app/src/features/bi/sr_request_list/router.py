@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object
-from ..openapi_examples import LEGACY_BI_RESPONSE
+from ..openapi_examples import (
+    SR_REQUEST_LIST_BODY,
+    SR_REQUEST_LIST_RESPONSE,
+)
 from src.openapi_helpers import integration_controller_description
 from .deps import SrRequestListServiceDep
 
@@ -18,7 +21,8 @@ router = APIRouter()
         url_action="sr-request-list",
         php_method="srRequestListAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=SR_REQUEST_LIST_BODY,
+    responses=SR_REQUEST_LIST_RESPONSE,
 )
 async def sr_request_list(
     request: Request,

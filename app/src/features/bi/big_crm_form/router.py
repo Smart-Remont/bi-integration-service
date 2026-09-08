@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object
-from ..openapi_examples import LEGACY_BI_RESPONSE
+from ..openapi_examples import (
+    BIG_CRM_FORM_BODY,
+    BIG_CRM_FORM_RESPONSE,
+)
 from src.openapi_helpers import integration_controller_description
 from .deps import BigCrmFormServiceDep
 
@@ -18,7 +21,8 @@ router = APIRouter()
         url_action="big-crm-form",
         php_method="bigCrmFormAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=BIG_CRM_FORM_BODY,
+    responses=BIG_CRM_FORM_RESPONSE,
 )
 async def big_crm_form(
     request: Request,

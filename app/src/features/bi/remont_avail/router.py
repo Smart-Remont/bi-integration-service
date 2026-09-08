@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object
-from ..openapi_examples import LEGACY_BI_RESPONSE
+from ..openapi_examples import (
+    REMONT_AVAIL_BODY,
+    REMONT_AVAIL_RESPONSE,
+)
 from src.openapi_helpers import integration_controller_description
 from .deps import RemontAvailServiceDep
 
@@ -18,7 +21,8 @@ router = APIRouter()
         url_action="remont-avail",
         php_method="remontAvailAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=REMONT_AVAIL_BODY,
+    responses=REMONT_AVAIL_RESPONSE,
 )
 async def remont_avail(
     request: Request,

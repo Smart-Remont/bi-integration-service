@@ -3,7 +3,14 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object
-from ..openapi_examples import LEGACY_BI_RESPONSE
+from ..openapi_examples import (
+    CRM_CREATE_CLIENT_REQUEST_AGREEMENT_BODY,
+    CRM_CREATE_CLIENT_REQUEST_EMPTY_BODY,
+    CRM_CREATE_REQUEST_BODY,
+    CRM_LEGACY_RESPONSE,
+    EMPTY_BODY,
+    SR_REMONT_REPORT_RESPONSE,
+)
 from src.openapi_helpers import integration_controller_description
 from .deps import CrmLegacyServiceDep
 
@@ -21,7 +28,8 @@ router = APIRouter()
         url_action="crm-create-client-request-empty",
         php_method="crmCreateClientRequestEmptyAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=CRM_CREATE_CLIENT_REQUEST_EMPTY_BODY,
+    responses=CRM_LEGACY_RESPONSE,
 )
 async def crm_create_client_request_empty(
     request: Request,
@@ -42,7 +50,8 @@ async def crm_create_client_request_empty(
         url_action="crm-create-client-request-agreement",
         php_method="crmCreateClientRequestAgreementAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=CRM_CREATE_CLIENT_REQUEST_AGREEMENT_BODY,
+    responses=CRM_LEGACY_RESPONSE,
 )
 async def crm_create_client_request_agreement(
     request: Request,
@@ -64,7 +73,8 @@ async def crm_create_client_request_agreement(
         url_action="create-request",
         php_method="createRequestAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=CRM_CREATE_REQUEST_BODY,
+    responses=CRM_LEGACY_RESPONSE,
 )
 async def create_request(
     request: Request,
@@ -85,7 +95,8 @@ async def create_request(
         url_action="sr-remont-report",
         php_method="srRemontReportAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=EMPTY_BODY,
+    responses=SR_REMONT_REPORT_RESPONSE,
 )
 async def sr_remont_report(
     _: BigIntegrationBasicAuthDep,

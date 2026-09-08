@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object_ru
+from ..openapi_examples import REQUEST_EVENT_V3_BODY, REQUEST_EVENT_V3_RESPONSE
 from .deps import RequestEventServiceDep
 
 router = APIRouter()
@@ -16,6 +17,8 @@ router = APIRouter()
         "→ `ddu__request_get`, ответ без `client_request_id`."
     ),
     deprecated=True,
+    openapi_extra=REQUEST_EVENT_V3_BODY,
+    responses=REQUEST_EVENT_V3_RESPONSE,
 )
 async def request_event(
     request: Request,

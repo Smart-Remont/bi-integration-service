@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object
-from ..openapi_examples import LEGACY_BI_RESPONSE
+from ..openapi_examples import (
+    SR_REMONT_AVAIL_BODY,
+    SR_REMONT_AVAIL_RESPONSE,
+)
 from src.openapi_helpers import integration_controller_description
 from .deps import SrRemontAvailServiceDep
 
@@ -18,7 +21,8 @@ router = APIRouter()
         url_action="sr-remont-avail",
         php_method="srRemontAvailAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=SR_REMONT_AVAIL_BODY,
+    responses=SR_REMONT_AVAIL_RESPONSE,
 )
 async def sr_remont_avail(
     request: Request,

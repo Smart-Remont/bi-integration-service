@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object
-from ..openapi_examples import LEGACY_BI_RESPONSE
+from ..openapi_examples import (
+    CHANGE_REQUEST_STATUS_BODY,
+    CHANGE_REQUEST_STATUS_RESPONSE,
+)
 from src.openapi_helpers import integration_controller_description
 from .deps import ChangeRequestStatusServiceDep
 
@@ -18,7 +21,8 @@ router = APIRouter()
         url_action="change-request-status",
         php_method="changeRequestStatusAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=CHANGE_REQUEST_STATUS_BODY,
+    responses=CHANGE_REQUEST_STATUS_RESPONSE,
 )
 async def change_request_status(
     request: Request,

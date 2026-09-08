@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 from ..auth import DduExportBasicAuthDep
-from ..openapi_examples import DDU_EXPORT_PARAM_RESPONSE
+from ..openapi_examples import DDU_EXPORT_FLAT_REMONT_INFO_RESPONSE
 from .deps import DduFlatRemontInfoServiceDep
 
 router = APIRouter()
@@ -16,7 +16,7 @@ router = APIRouter()
         "SP возвращает одну строку на пару (комната, параметр); "
         "эндпоинт группирует их в `rooms[].params[]`."
     ),
-    responses=DDU_EXPORT_PARAM_RESPONSE,
+    responses=DDU_EXPORT_FLAT_REMONT_INFO_RESPONSE,
 )
 async def ddu_flat_remont_info(
     _: DduExportBasicAuthDep,

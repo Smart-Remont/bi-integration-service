@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_raw_body
-from ..openapi_examples import BIG_NOTIFY_CLIENT_RESPONSE
+from ..openapi_examples import BIG_NOTIFY_CLIENT_BODY, BIG_NOTIFY_CLIENT_RESPONSE
 from .deps import BigNotifyClientServiceDep
 
 router = APIRouter()
@@ -17,6 +17,7 @@ router = APIRouter()
         "Тело — UTF-8 строка без пересериализации. "
         "Ответ с `error.code`; при ошибке HTTP 400."
     ),
+    openapi_extra=BIG_NOTIFY_CLIENT_BODY,
     responses=BIG_NOTIFY_CLIENT_RESPONSE,
 )
 async def big_notify_client(

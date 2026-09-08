@@ -2,6 +2,7 @@ from fastapi import APIRouter, Response
 
 from src.openapi_helpers import legacy_integration_path
 
+from ..openapi_examples import SHOWROOM_INFO_LIST_RESPONSE
 from .deps import ShowroomInfoListServiceDep
 
 router = APIRouter()
@@ -15,6 +16,7 @@ router = APIRouter()
         "`BI_SHOWROOM_INFO_URL` (default opera.bi.group). **Auth:** нет."
         + legacy_integration_path("showroom-info-list")
     ),
+    responses=SHOWROOM_INFO_LIST_RESPONSE,
 )
 @router.post("/showroom-info-list", include_in_schema=False)
 async def showroom_info_list(service: ShowroomInfoListServiceDep) -> Response:

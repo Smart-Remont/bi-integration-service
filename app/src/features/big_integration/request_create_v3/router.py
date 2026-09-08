@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object
+from ..openapi_examples import REQUEST_CREATE_V3_BODY, REQUEST_CREATE_V3_RESPONSE
 from .deps import RequestCreateV3ServiceDep
 
 router = APIRouter()
@@ -14,6 +15,8 @@ router = APIRouter()
     description=(
         "**БД:** `ddu__create_request_v2` → `ddu__request_get`"
     ),
+    openapi_extra=REQUEST_CREATE_V3_BODY,
+    responses=REQUEST_CREATE_V3_RESPONSE,
 )
 async def request_create_v3(
     request: Request,

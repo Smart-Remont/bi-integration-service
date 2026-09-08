@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object
-from ..openapi_examples import LEGACY_BI_RESPONSE
+from ..openapi_examples import (
+    BIGAPP_FORM_BODY,
+    BIGAPP_FORM_RESPONSE,
+)
 from src.openapi_helpers import integration_controller_description
 from .deps import BigappFormServiceDep
 
@@ -18,7 +21,8 @@ router = APIRouter()
         url_action="bigapp-form",
         php_method="bigappFormAction",
     ),
-    responses=LEGACY_BI_RESPONSE,
+    openapi_extra=BIGAPP_FORM_BODY,
+    responses=BIGAPP_FORM_RESPONSE,
 )
 async def bigapp_form(
     request: Request,

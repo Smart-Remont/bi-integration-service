@@ -3,7 +3,10 @@ from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
 from ..http import read_json_object_ru
-from ..openapi_examples import REQUEST_CONSTRUCTIVES_RESPONSE
+from ..openapi_examples import (
+    REQUEST_CONSTRUCTIVES_BODY,
+    REQUEST_CONSTRUCTIVES_RESPONSE,
+)
 from ..responses import big_integration_error_response
 from .deps import RequestConstructivesServiceDep
 
@@ -20,6 +23,7 @@ _METHOD_NOT_ALLOWED = "Неподдерживаемый метод"
         "`ddu_request_full_info`\n\n"
         "Поле `characteristic_json` в наполнении разбирается из строки в объект."
     ),
+    openapi_extra=REQUEST_CONSTRUCTIVES_BODY,
     responses=REQUEST_CONSTRUCTIVES_RESPONSE,
 )
 async def request_constructives(
