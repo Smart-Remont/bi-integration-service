@@ -57,6 +57,14 @@ class FileStoreMode(StrEnum):
     CMS_REVIEW_AVATAR = "CMS_REVIEW_AVATAR"
     CMS_TEAM_PHOTO = "CMS_TEAM_PHOTO"
     CMS_BEST_REMONT_RESIDENT_PHOTO = "CMS_BEST_REMONT_RESIDENT_PHOTO"
+    CMS_PRESET_MEDIA = "CMS_PRESET_MEDIA"
+    CMS_PRESET_RESIDENT_MEDIA = "CMS_PRESET_RESIDENT_MEDIA"
+    CMS_PRESET_INFO_PHOTO = "CMS_PRESET_INFO_PHOTO"
+    CMS_PRESET_INFO_PHOTO_MINI = "CMS_PRESET_INFO_PHOTO_MINI"
+    CMS_DOCUMENT = "CMS_DOCUMENT"
+    CMS_PRESET_KIT_INFO_PRESENTATION = "CMS_PRESET_KIT_INFO_PRESENTATION"
+    CMS_PRESET_KIT_INFO_IMG = "CMS_PRESET_KIT_INFO_IMG"
+    CMS_PRESET_KIT_INFO_IMG_MINI = "CMS_PRESET_KIT_INFO_IMG_MINI"
 
 
 FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
@@ -106,6 +114,14 @@ FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
     FileStoreMode.CMS_REVIEW_AVATAR: "Аватар отзыва (CMS)",
     FileStoreMode.CMS_TEAM_PHOTO: "Фото сотрудника команды (CMS)",
     FileStoreMode.CMS_BEST_REMONT_RESIDENT_PHOTO: "Фото «Лучшие резиденты» (CMS)",
+    FileStoreMode.CMS_PRESET_MEDIA: "Медиа пресета — витрина (CMS)",
+    FileStoreMode.CMS_PRESET_RESIDENT_MEDIA: "Медиа резидента пресета — витрина (CMS)",
+    FileStoreMode.CMS_PRESET_INFO_PHOTO: "Фото инфо о пресете (оригинал, CMS)",
+    FileStoreMode.CMS_PRESET_INFO_PHOTO_MINI: "Фото инфо о пресете (мини, CMS)",
+    FileStoreMode.CMS_DOCUMENT: "Документ конструктора (CMS)",
+    FileStoreMode.CMS_PRESET_KIT_INFO_PRESENTATION: "Презентация набора пресета (CMS)",
+    FileStoreMode.CMS_PRESET_KIT_INFO_IMG: "Фото набора пресета (оригинал, CMS)",
+    FileStoreMode.CMS_PRESET_KIT_INFO_IMG_MINI: "Фото набора пресета (мини, CMS)",
 }
 
 # Same folders/prefixes as KanbanController::srfileUploadAction.
@@ -157,6 +173,14 @@ MODE_PATH_TEMPLATES: dict[FileStoreMode, str] = {
     FileStoreMode.CMS_REVIEW_AVATAR: "/documents/{date}/cms_reviews/avatar_{uniq}.{ext}",
     FileStoreMode.CMS_TEAM_PHOTO: "/documents/{date}/cms_team/photo_{uniq}.{ext}",
     FileStoreMode.CMS_BEST_REMONT_RESIDENT_PHOTO: "/documents/{date}/cms_best_remont_resident/photo_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_MEDIA: "/documents/{date}/cms_preset/media_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_RESIDENT_MEDIA: "/documents/{date}/cms_preset_resident/media_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_INFO_PHOTO: "/documents/{date}/cms_preset_info/photo_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_INFO_PHOTO_MINI: "/documents/{date}/cms_preset_info/mini/photo_mini_{uniq}.{ext}",
+    FileStoreMode.CMS_DOCUMENT: "/documents/{date}/cms_document/doc_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_KIT_INFO_PRESENTATION: "/documents/{date}/cms_preset_kit_info/presentation_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_KIT_INFO_IMG: "/documents/{date}/cms_preset_kit_info/img_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_KIT_INFO_IMG_MINI: "/documents/{date}/cms_preset_kit_info/mini/img_mini_{uniq}.{ext}",
 }
 
 
