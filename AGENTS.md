@@ -64,7 +64,11 @@ features/big_integration/
 | `ddu-request-info` | GET | `ddu_request_info_by_client_request` |
 | `ddu-flat-info` | GET | `ddu_flat_info` |
 | `request-constructives` | POST | `ddu_client_material__read`, `ddu_client_filling__read`, `ddu_request_full_info` |
+| `remont-preset-list-v2` | POST | `ddu__preset_list_v2`, `render_*` |
+| `remont-preset` | POST | `ddu__preset_list_v2`, `render_filling__*` |
 | `big-notify-client` | POST | `big_notify_client` |
+
+**Не переносим (legacy, нет трафика в prod):** `request-create`, `request-create-v2`, `request-event` (v1), `remont-preset-list` (v1). Актуальные: `request-create-v3`, `request-event-v3`, `remont-preset-list-v2`.
 
 ### HTTP-контракт
 

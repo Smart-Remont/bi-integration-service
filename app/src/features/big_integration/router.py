@@ -7,6 +7,8 @@ from .ddu_request_info.router import router as ddu_request_info_router
 from .ddu_resident_agreement_status.router import (
     router as ddu_resident_agreement_status_router,
 )
+from .remont_preset.router import router as remont_preset_router
+from .remont_preset_list_v2.router import router as remont_preset_list_v2_router
 from .repair_pack_prices.router import router as repair_pack_prices_router
 from .request_constructives.router import router as request_constructives_router
 from .request_create_v3.router import router as request_create_v3_router
@@ -20,6 +22,8 @@ router.include_router(ddu_flat_info_router)
 router.include_router(ddu_flat_info_multiple_router)
 router.include_router(ddu_request_info_router)
 router.include_router(ddu_resident_agreement_status_router)
+router.include_router(remont_preset_router)
+router.include_router(remont_preset_list_v2_router)
 router.include_router(repair_pack_prices_router)
 router.include_router(request_constructives_router)
 router.include_router(request_create_v3_router)
