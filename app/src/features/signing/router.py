@@ -13,6 +13,7 @@ from src.openapi_helpers import add_cron_route, cron_description, legacy_integra
 from .deps import (
     AituFlowServiceDep,
     AituRedirectServiceDep,
+    AutoSignOperatorServiceDep,
     DidSignServiceDep,
     SigningCronServiceDep,
     SigningDownloadServiceDep,
@@ -129,6 +130,21 @@ async def aitu_sign_detail(service: SigningCronServiceDep) -> Response:
 )
 async def cron_auto_upload_sign_doc(service: SigningCronServiceDep) -> Response:
     return await _plain(service.cron_auto_upload_sign_doc())
+
+
+@add_cron_route(
+    router,
+    "/cron-auto-sign-operator",
+    summary="Cron: cronAutoSignOperatorAction — CMS автоподпись оператора",
+    description=cron_description(
+        "**БД:** `public.sign_read_for_auto_sign_operator` → `nca.company_key_store__get_active_by_company` "
+        "→ MyNCA `cms/sign-save` → `client.insert_sign_general` → `client.sign_tab__modify`.\n\n"
+        "Требует `NCA_MASTER_KEY`, `MYNCA_*`. **Ответ:** `0`.",
+        php_action="cron-auto-sign-operator",
+    ),
+)
+async def cron_auto_sign_operator(service: AutoSignOperatorServiceDep) -> Response:
+    return await _plain(service.run())
 
 
 @router.get(

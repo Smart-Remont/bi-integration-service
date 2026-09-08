@@ -9,6 +9,7 @@ from .repo import SigningRepository
 from .services import (
     AituFlowService,
     AituRedirectService,
+    AutoSignOperatorService,
     DidSignService,
     SigningCronService,
     SigningDownloadService,
@@ -85,7 +86,15 @@ def get_did_sign_service(connection: DatabaseConnectionDep) -> DidSignService:
     return DidSignService(SigningRepository(connection=connection))
 
 
+def get_auto_sign_operator_service(
+    connection: DatabaseConnectionDep,
+    mynca: Annotated[MyncaClient, Depends(get_mynca_client)],
+) -> AutoSignOperatorService:
+    return AutoSignOperatorService(SigningRepository(connection=connection), mynca)
+
+
 SigningCronServiceDep = Annotated[SigningCronService, Depends(get_signing_cron_service)]
+AutoSignOperatorServiceDep = Annotated[AutoSignOperatorService, Depends(get_auto_sign_operator_service)]
 AituFlowServiceDep = Annotated[AituFlowService, Depends(get_aitu_flow_service)]
 AituRedirectServiceDep = Annotated[AituRedirectService, Depends(get_aitu_redirect_service)]
 SigningDownloadServiceDep = Annotated[SigningDownloadService, Depends(get_signing_download_service)]

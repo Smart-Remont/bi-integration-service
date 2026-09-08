@@ -122,6 +122,11 @@ class PaymentsConfig:
         or os.getenv("OFFICE_PUBLIC_URL")
         or "https://office.smartremont.kz"
     ).rstrip("/")
+    kaspi_allowed_ips: tuple[str, ...] = tuple(
+        ip.strip()
+        for ip in os.getenv("KASPI_ALLOWED_IPS", "194.187.247.152").split(",")
+        if ip.strip()
+    )
     paybox_enabled: bool = os.getenv("PAYBOX_ENABLED", "false").lower() in ("1", "true", "yes")
     forte_url: str = os.getenv("FORTE_URL", "")
     forte_merchant: str = os.getenv("FORTE_MERCHANT", "")
@@ -154,6 +159,13 @@ class SigningConfig:
 class LeadsConfig:
     albato_meta_token: str = os.getenv("ALBATO_META_TOKEN", "")
     tilda_export_dir: str = os.getenv("TILDA_EXPORT_DIR", "")
+
+
+class BiConfig:
+    showroom_info_url: str = os.getenv(
+        "BI_SHOWROOM_INFO_URL",
+        "https://opera.bi.group/wbs/api/applications/showroomsmartremont/",
+    )
 
 
 class WorkersConfig:
@@ -237,6 +249,7 @@ sberbank_config = SberbankConfig()
 payments_config = PaymentsConfig()
 signing_config = SigningConfig()
 leads_config = LeadsConfig()
+bi_config = BiConfig()
 workers_config = WorkersConfig()
 minio_config = MinioConfig()
 file_store_config = FileStoreConfig()

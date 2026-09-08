@@ -1,16 +1,6 @@
 """Sub-routers from ``IntegrationController.php`` (hs_bi + ``response_json()``).
 
 PHP URL: ``/integration/{action}`` — здесь ``/api/integration/{action}``.
-
-Не перенесено:
-
-- ``crmCreateClientRequestEmptyAction`` — ``rest.bi_create_client_request``
-  now requires 3 args (``flat_guid_, preset_id_, client_request_id_``); the
-  PHP model still calls it with 1 arg.
-- ``crmCreateClientRequestAgreementAction`` — ``rest.bi_create_client_request_agreement``
-  does not exist.
-- ``createRequestAction`` — ``rest.bi_create_request`` does not exist.
-- ``srRemontReportAction`` — ``rest.sr_remont_report`` does not exist.
 """
 
 from fastapi import APIRouter
@@ -18,8 +8,10 @@ from fastapi import APIRouter
 from .big_crm_form.router import router as big_crm_form_router
 from .bigapp_form.router import router as bigapp_form_router
 from .change_request_status.router import router as change_request_status_router
+from .crm_legacy.router import router as crm_legacy_router
 from .get_constructives.router import router as get_constructives_router
 from .remont_avail.router import router as remont_avail_router
+from .showroom_info_list.router import router as showroom_info_list_router
 from .sr_preset_list.router import router as sr_preset_list_router
 from .sr_remont_avail.router import router as sr_remont_avail_router
 from .sr_render.router import router as sr_render_router
@@ -44,3 +36,5 @@ router.include_router(get_constructives_router)
 router.include_router(change_request_status_router)
 router.include_router(bigapp_form_router)
 router.include_router(big_crm_form_router)
+router.include_router(showroom_info_list_router)
+router.include_router(crm_legacy_router)

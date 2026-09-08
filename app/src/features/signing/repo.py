@@ -395,3 +395,90 @@ class SigningRepository(BaseRepository):
         if value is None:
             return None
         return int(value)
+
+    async def sign_read_for_auto_sign_operator(self) -> SpRows:
+        try:
+            return await self.call_sp(
+                "public.sign_read_for_auto_sign_operator",
+                cursor=True,
+                module_code=PUBLIC_MODULE_CODE,
+            )
+        except Exception as exc:
+            raise to_signing_database_error(exc) from exc
+
+    async def company_key_store_get_active_by_company(
+        self,
+        company_id: int,
+        master_key: str,
+    ) -> dict[str, object] | None:
+        try:
+            rows = await self.call_sp(
+                "nca.company_key_store__get_active_by_company",
+                company_id,
+                master_key,
+                cursor=True,
+                module_code="MYSPACE",
+            )
+        except Exception as exc:
+            raise to_signing_database_error(exc) from exc
+        return rows[0] if rows else None
+
+    async def insert_sign_general(
+        self,
+        *,
+        client_request_id: object | None = None,
+        ds_id: object | None = None,
+        client_request_document_id: object | None = None,
+        sign_type_code: str,
+        sign_message: str,
+        orig_message: str,
+        tsp_message: object | None,
+        dn_name: str,
+        sign_what: str = "MYNCA_AUTO",
+        sign_pid: object | None = None,
+    ) -> int | None:
+        from src.features.payments.constants import CLIENT_MODULE_CODE
+
+        try:
+            rows = await self.call_sp(
+                "client.insert_sign_general",
+                client_request_id,
+                ds_id,
+                client_request_document_id,
+                sign_type_code,
+                sign_message,
+                orig_message,
+                tsp_message,
+                dn_name,
+                sign_what,
+                sign_pid,
+                module_code=CLIENT_MODULE_CODE,
+            )
+        except Exception as exc:
+            raise to_signing_database_error(exc) from exc
+        value = scalar_from_sp_rows(rows)
+        return int(value) if value is not None else None
+
+    async def sign_tab_modify(
+        self,
+        *,
+        sign_id: int,
+        sign_process_id: str | None,
+        sign_group_id: str | None,
+        sign_method: str | None,
+        sign_message: str | None,
+    ) -> None:
+        from src.features.payments.constants import CLIENT_MODULE_CODE
+
+        try:
+            await self.call_sp(
+                "client.sign_tab__modify",
+                sign_id,
+                sign_process_id,
+                sign_group_id,
+                sign_method,
+                sign_message,
+                module_code=CLIENT_MODULE_CODE,
+            )
+        except Exception as exc:
+            raise to_signing_database_error(exc) from exc

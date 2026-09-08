@@ -188,7 +188,7 @@ Kcell credentials в env (`KCELL_HERMES_*`, `KCELL_BATCH_*`), не в коде.
 
 ---
 
-## Payments API (Sber / Forte / Paybox)
+## Payments API (Sber / Forte / Paybox / Kaspi / CloudPayments)
 
 Redirect/callback/cron. Без HTTP auth. `/api/payments/...`
 
@@ -197,10 +197,13 @@ Redirect/callback/cron. Без HTTP auth. `/api/payments/...`
 | `sberbank-callback` | `sberbankCallbackAction` | активен в PHP |
 | `sberbank-check-payment-status` | cron | активен |
 | `sberbank-pay/mode/{mode}` | register/postlink | PHP был с `return;`, логика перенесена |
-| `forte-pay/mode/{mode}` | register/callbacks/cron | write SP `forte_*` **нет в pg_proc** |
+| `forte-pay/mode/{mode}` | register/callbacks/cron | write SP `forte_*` **может отсутствовать в pg_proc** |
 | `paybox/mode/{mode}` | init/cron | `PAYBOX_ENABLED=false` по умолчанию |
+| `kaspi-request-pay` | `ClientController::kaspiRequestPayAction` | XML check/pay по заявке |
+| `kaspi-payment-pay` | `ClientController::kaspiPaymentPayAction` | XML check/pay по платежу |
+| `cloudpayments/mode/{mode}` | `ClientController::cpResponseAction` | urlencoded webhook |
 
-Env: `SBERBANK_*`, `PAYMENTS_PUBLIC_BASE_URL`, `FORTE_*` / DB settings, `PAYBOX_*`.
+Env: `SBERBANK_*`, `PAYMENTS_PUBLIC_BASE_URL`, `KASPI_ALLOWED_IPS`, `FORTE_*` / DB settings, `PAYBOX_*`.
 
 ---
 
@@ -216,6 +219,7 @@ Cron + redirect flows. Без HTTP auth. `/api/signing/...`
 | `aitu-get-photos` | `aituGetPhotosAction` | `did_read_for_photo` → Aitu → `did_photo_upd` |
 | `aitu-sign-detail` | `aituSignDetailAction` | `did_read_for_detail` → AITU_PARSE_URL → `did_detail_insert` |
 | `cron-auto-upload-sign-doc` | `cronAutoUploadSignDocAction` | `sign_read_for_doc` → MyNCA group PDF → MinIO → `sale.sign_document_upd` |
+| `cron-auto-sign-operator` | `cronAutoSignOperatorAction` | company EDS → MyNCA CMS → `insert_sign_general` |
 | `did-sign` | `didSignAction` | `did_url_get` → 302 |
 | `perform-ds-did-sign` | `performDsDidSignAction` | office/myspace PDF → `did_insert` → Aitu redirect |
 | `perform-agreement-did-sign` | `performAgreementDidSignAction` | office PDF → `did_insert` → Aitu redirect |
@@ -224,9 +228,9 @@ Cron + redirect flows. Без HTTP auth. `/api/signing/...`
 | `download-agreement` | `downloadAgreementAction` | unsigned: office contract → MyNCA; signed: partner API |
 | `third-party-app-sign-back` | `thirdPartyAppSignBackAction` | `check_iin_sign_third_party_app` → MinIO → `client_request_upd_doc` |
 
-**Не перенесено:** `cron-auto-sign-operator` (MyNCA + office filesystem), `did-manual` (debug).
+**Не перенесено:** `did-manual` (debug).
 
-Env: `AITU_*` / DB `AITU_CLIENT`, `AITU_SECRET`, `AITU_BASE_URL`, `AITU_REDIRECT_URL`, `AITU_PARSE_URL`; `MYNCA_*`; `SIGNING_PUBLIC_BASE_URL`, `MYSPACE_API_URL`, `PARTNER_API_URL`, `MINIO_*`.
+Env: `AITU_*` / DB `AITU_CLIENT`, `AITU_SECRET`, `AITU_BASE_URL`, `AITU_REDIRECT_URL`, `AITU_PARSE_URL`; `MYNCA_*`, `NCA_MASTER_KEY`; `SIGNING_PUBLIC_BASE_URL`, `MYSPACE_API_URL`, `PARTNER_API_URL`, `MINIO_*`.
 
 ---
 

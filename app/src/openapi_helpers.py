@@ -27,6 +27,11 @@ def legacy_integration_path(action: str) -> str:
     return f"\n\n**Legacy PHP:** `/integration/{action}` (`IntegrationController.php`)."
 
 
+def legacy_client_path(action: str) -> str:
+    """Zend route: ClientController → /client/{action}."""
+    return f"\n\n**Legacy PHP:** `/client/{action}` (`ClientController.php`)."
+
+
 def cron_description(body: str, *, php_action: str | None = None) -> str:
     text = body
     if php_action:
