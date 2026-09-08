@@ -41,6 +41,16 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "Legacy BI/CRM",
+        "description": (
+            "Legacy `IntegrationController` (BI-группа): рендер/наличие, отчёты, лиды из "
+            "BI-приложения/CRM. Basic Auth — тот же `hs_bi`, что у BIG Integration. "
+            "Формат ответа отличается: `error.code`, при ошибке HTTP 400 и `data` содержит "
+            "код ошибки `P0xx`. Часть legacy-действий не перенесена — их SP больше нет в БД, "
+            "см. `docs/legacy-bi.md`."
+        ),
+    },
+    {
         "name": "File Storage",
         "description": (
             "Async-загрузка файлов напрямую в MinIO (S3). Контракт `{filename, path, ext}` "
@@ -79,6 +89,7 @@ app = FastAPI(
         "- **MyNCA** — электронная подпись документов для факторинга.\n"
         "- **BIG Integration** — API ДДУ (`/api/big_integration/...`, см. `docs/big-integration.md`).\n"
         "- **DDU Export** — справочники ДДУ (`/api/ddu_export/...`), отдельный Basic Auth.\n"
+        "- **Legacy BI/CRM** — `/api/legacy_bi/...`, см. `docs/legacy-bi.md`.\n"
         "- **File Storage** — прямой MinIO для `/documents/...` (`MINIO_*`, `STORAGE_PUBLIC_URL`).\n"
     ),
     version="0.1.0",

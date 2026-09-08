@@ -70,7 +70,7 @@ features/big_integration/
 
 Legacy DDU v1 (`request-create`, `request-event`, `remont-preset-list`) — отдельный этап 5 при полном cutover PHP.
 
-Остальной `IntegrationController` — отдельные модули `features/*` (export, BI, SMS, payments, signing, leads). См. `agent-memory/big-integration-cutover/README.md`.
+Остальной `IntegrationController` — отдельные модули `features/*` (export ✅, BI ✅, SMS, payments, signing, leads). См. `agent-memory/big-integration-cutover/README.md`.
 
 ---
 
@@ -112,6 +112,47 @@ features/ddu_export/
 | `ddu-room-type-list` | GET | `ddu_room_type_list` |
 
 **Не перенесено:** `export-table-read` (SP `rest.export_table_read` не существует в БД + security risk generic-дампа таблиц), `sms-notify-status` (не ДДУ-домен, см. этап 6 SMS/Kcell).
+
+---
+
+## Legacy BI/CRM API
+
+BI-группа `IntegrationController` — рендер/наличие, отчёты, лиды BI-приложения/CRM. Та же
+Basic Auth-учётка, что у BIG Integration (`hs_bi`), но **другой конверт ответа**
+(`error.code`, HTTP 400 при ошибке, `data` = код `P0xx`). Документация:
+**[docs/legacy-bi.md](docs/legacy-bi.md)**.
+
+### Структура
+
+```text
+features/legacy_bi/
+├── auth.py             # реэкспорт BigIntegrationBasicAuthDep — та же учётка
+├── constants.py         # LEGACY_BI_MODULE_CODE
+├── errors.py             # LegacyBiDatabaseError + legacy_bi_error_code() (P0xx)
+├── responses.py         # envelope {"data","response","error":{"code","message"}}
+├── json_helpers.py     # parse_scalar_json — SP возвращают JSON-строку, не jsonb
+├── router.py             # агрегатор под-роутеров
+└── <endpoint_name>/
+    ├── deps.py
+    ├── repo.py
+    ├── router.py
+    └── service.py
+```
+
+### URL
+
+```text
+/api + /legacy_bi + /<route>
+```
+
+**Эндпоинты** (auth `INTEGRATION_HS_BI_*`): `sr-render`, `sr-request-list`, `sr-preset-list`,
+`sr-render-avail`, `sr-stage`, `sr-showroom-report`, `sr-resident-report`, `sr-remont-avail`,
+`remont-avail`, `get-constructives`, `change-request-status`, `bigapp-form`, `big-crm-form` —
+детали и тела запросов в [docs/legacy-bi.md](docs/legacy-bi.md).
+
+**Не перенесено** (SP не существует в БД или сигнатура разошлась с PHP-моделью):
+`crm-create-client-request-empty`, `crm-create-client-request-agreement`, `create-request`,
+`sr-remont-report`.
 
 ### HTTP-контракт
 
