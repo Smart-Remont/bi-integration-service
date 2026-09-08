@@ -13,6 +13,13 @@ class BigIntegrationAuthConfig:
     password: str = os.getenv("INTEGRATION_HS_BI_PASSWORD", "")
 
 
+class DduExportAuthConfig:
+    """Basic auth for /api/ddu_export/* — separate credentials from BIG Integration."""
+
+    username: str = os.getenv("DDU_EXPORT_AUTH_USER", "ddu_export")
+    password: str = os.getenv("DDU_EXPORT_AUTH_PASSWORD", "")
+
+
 class InstallmentAuthConfig:
     username: str = os.getenv("INSTALLMENT_API_USER", "")
     password: str = os.getenv("INSTALLMENT_API_PASSWORD", "")
@@ -124,6 +131,7 @@ class FileStoreConfig:
 
 cors_config = CORSConfig()
 big_integration_auth_config = BigIntegrationAuthConfig()
+ddu_export_auth_config = DduExportAuthConfig()
 installment_auth_config = InstallmentAuthConfig()
 factoring_auth_config = FactoringAuthConfig()
 storage_auth_config = StorageAuthConfig()

@@ -34,6 +34,13 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "DDU Export",
+        "description": (
+            "DDU Export — справочники и выгрузки для внешней сверки. Basic Auth "
+            "(`DDU_EXPORT_AUTH_*`), отдельные от BIG Integration."
+        ),
+    },
+    {
         "name": "File Storage",
         "description": (
             "Async-загрузка файлов напрямую в MinIO (S3). Контракт `{filename, path, ext}` "
@@ -71,6 +78,7 @@ app = FastAPI(
         "обе заявки хранятся в одной таблице `installment_application_tab` (`product_type`).\n"
         "- **MyNCA** — электронная подпись документов для факторинга.\n"
         "- **BIG Integration** — API ДДУ (`/api/big_integration/...`, см. `docs/big-integration.md`).\n"
+        "- **DDU Export** — справочники ДДУ (`/api/ddu_export/...`), отдельный Basic Auth.\n"
         "- **File Storage** — прямой MinIO для `/documents/...` (`MINIO_*`, `STORAGE_PUBLIC_URL`).\n"
     ),
     version="0.1.0",

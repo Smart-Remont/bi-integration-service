@@ -68,7 +68,50 @@ features/big_integration/
 | `remont-preset` | POST | `ddu__preset_list_v2`, `render_filling__*` |
 | `big-notify-client` | POST | `big_notify_client` |
 
-**Не переносим (legacy, нет трафика в prod):** `request-create`, `request-create-v2`, `request-event` (v1), `remont-preset-list` (v1). Актуальные: `request-create-v3`, `request-event-v3`, `remont-preset-list-v2`.
+Legacy DDU v1 (`request-create`, `request-event`, `remont-preset-list`) — отдельный этап 5 при полном cutover PHP.
+
+Остальной `IntegrationController` — отдельные модули `features/*` (export, BI, SMS, payments, signing, leads). См. `agent-memory/big-integration-cutover/README.md`.
+
+---
+
+## DDU Export API
+
+Отдельный от BIG Integration домен — своя Basic Auth (`DDU_EXPORT_AUTH_*`), свой роутер, свой
+модуль ошибок/envelope. Документация: **[docs/ddu-export.md](docs/ddu-export.md)**.
+
+### Структура
+
+```text
+features/ddu_export/
+├── auth.py       # HTTP Basic (DDU_EXPORT_AUTH_*), отдельные credentials от hs_bi
+├── constants.py  # DDU_EXPORT_MODULE_CODE
+├── errors.py     # DduExportDatabaseError (использует src/pg_error_utils.py)
+├── responses.py  # envelope {"data","response","error"} — своя копия, без импорта из big_integration
+├── router.py     # агрегатор под-роутеров
+└── <endpoint_name>/
+    ├── deps.py
+    ├── repo.py
+    ├── router.py
+    └── service.py
+```
+
+### URL
+
+```text
+/api + /ddu_export + /<route>
+```
+
+**Эндпоинты** (auth `DDU_EXPORT_AUTH_*`):
+
+| Route | Method | БД |
+|-------|--------|-----|
+| `ddu-flat-remont-info` | GET | `ddu_flat_remont_info` (группировка по комнатам в service) |
+| `ddu-resident-list` | GET | `ddu_resident_list` |
+| `ddu-flat-list-by-resident` | GET | `ddu_flat_list_by_resident` |
+| `ddu-room-list` | GET | `ddu_room_list` |
+| `ddu-room-type-list` | GET | `ddu_room_type_list` |
+
+**Не перенесено:** `export-table-read` (SP `rest.export_table_read` не существует в БД + security risk generic-дампа таблиц), `sms-notify-status` (не ДДУ-домен, см. этап 6 SMS/Kcell).
 
 ### HTTP-контракт
 
