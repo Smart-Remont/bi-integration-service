@@ -21,11 +21,7 @@ class RequestConstructivesService(BaseService):
             filling_list = await self.repository.ddu_client_filling__read(body)
             filling_list = _decode_characteristic_json(filling_list)
 
-            request_info = await self.repository.ddu_request_full_info(body)
-            if request_info is None:
-                return big_integration_error_response(
-                    "Пустой ответ от rest.ddu_request_full_info",
-                )
+            request_info = await self.repository.ddu_request_full_info(body) or {}
 
             response_data: dict[str, object] = {
                 "placementUUID": request_info.get("flat_guid"),

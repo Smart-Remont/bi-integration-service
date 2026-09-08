@@ -17,9 +17,14 @@ class DduFlatInfoMultipleService(BaseService):
 
     async def ddu_flat_info_multiple(self, body: dict[str, object]) -> JSONResponse:
         flat_guids = body.get("flat_guids")
-        if not isinstance(flat_guids, list) or not flat_guids:
+        if not isinstance(flat_guids, list):
             return big_integration_error_response(
-                'Поле "flat_guids" не заполнено',
+                "Параметр flat_guids должен быть массивом",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        if not flat_guids:
+            return big_integration_error_response(
+                "Массив flat_guids не может быть пустым",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 

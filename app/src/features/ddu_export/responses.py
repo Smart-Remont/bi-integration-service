@@ -1,15 +1,16 @@
 from typing import Any
 
 from fastapi import status
-from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+
+from src.php_json import php_jsonable_encoder
 
 
 def ddu_export_success_response(data: Any) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
-            "data": jsonable_encoder(data),
+            "data": php_jsonable_encoder(data),
             "response": True,
             "error": {"message": ""},
         },

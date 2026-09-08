@@ -17,7 +17,9 @@ class GetConstructivesService(BaseService):
 
     async def get_constructives(self, body: dict[str, object]) -> JSONResponse:
         try:
-            value = await self.repository.bi_get_client_request_material_json(body.get("application_id"))
+            raw_id = body.get("application_id")
+            client_request_id = int(raw_id) if raw_id not in (None, "") else None
+            value = await self.repository.bi_get_client_request_material_json(client_request_id)
             return bi_success_response(parse_scalar_json(value))
-        except BiDatabaseError as exc:
-            return bi_error_response(exc.message)
+        except (BiDatabaseError, ValueError, TypeError) as exc:
+            return bi_error_response(str(exc) if not isinstance(exc, BiDatabaseError) else exc.message)

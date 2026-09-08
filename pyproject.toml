@@ -19,3 +19,21 @@ dependencies = [
     "scalar-fastapi>=1.8.2",
     "uvicorn>=0.48.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["app/tests"]
+pythonpath = ["app"]
+markers = [
+    "live: smoke against devprod office (needs credentials in app/.env)",
+    "parity: PHP vs integrations-sr must return identical HTTP status + JSON body",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

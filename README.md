@@ -338,20 +338,21 @@ v1_router.include_router(example_router)
 
 ## Тесты и линтеры
 
-На данный момент в репозитории не найдено настроенных тестов, Ruff, Black, mypy, pre-commit или CI workflow.
+```bash
+cd app && uv sync --group dev
 
-Если добавляете их, фиксируйте команды здесь, чтобы следующие разработчики и ИИ-агенты знали стандартную проверку проекта.
+# unit tests (mocked DB, no network) — from repo root:
+uv run pytest app/tests/ddu_integration -v
 
-Рекомендуемая будущая секция:
+# live: 100% JSON parity PHP (devprod) vs integrations-sr — same DB required
+uv run pytest app/tests/live/test_ddu_get_parity.py -m parity -v
+```
+
+`OFFICE_BASE_URL` → `https://devprod.smart-remont.kz`. `INTEGRATIONS_BASE_URL` → running uvicorn with **the same PostgreSQL** as devprod.
 
 ```bash
-# tests
-pytest
-
-# lint
+# lint (when configured)
 ruff check .
-
-# format
 ruff format .
 ```
 

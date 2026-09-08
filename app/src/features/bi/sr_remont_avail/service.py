@@ -14,7 +14,11 @@ def _block_guid_arr(body: dict[str, object]) -> list[str]:
     raw = body.get("realEstateUUIDs")
     if not isinstance(raw, list):
         return []
-    return sorted({str(item) for item in raw})
+    return _unique_preserve_order([str(item) for item in raw])
+
+
+def _unique_preserve_order(items: list[str]) -> list[str]:
+    return list(dict.fromkeys(items))
 
 
 class SrRemontAvailService(BaseService):

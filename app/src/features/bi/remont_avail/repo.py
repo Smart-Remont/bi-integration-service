@@ -10,7 +10,7 @@ class RemontAvailRepository(BaseRepository):
         flat_guid: object | None,
         resident_guid: object | None,
         flat_num: object | None,
-    ) -> object | None:
+    ) -> list[dict[str, object]]:
         try:
             rows = await self.call_sp(
                 "rest.bi_remont_avail",
@@ -23,6 +23,4 @@ class RemontAvailRepository(BaseRepository):
         except Exception as exc:
             raise to_bi_database_error(exc) from exc
 
-        if not rows:
-            return None
-        return next(iter(rows[0].values()))
+        return rows

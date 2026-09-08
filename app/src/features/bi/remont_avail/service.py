@@ -16,11 +16,16 @@ class RemontAvailService(BaseService):
 
     async def remont_avail(self, body: dict[str, object]) -> JSONResponse:
         try:
-            value = await self.repository.bi_remont_avail(
+            rows = await self.repository.bi_remont_avail(
                 body.get("flat_guid"),
                 body.get("resident_guid"),
                 body.get("flat_num"),
             )
-            return bi_success_response(value)
+            if not rows:
+                data = None
+            else:
+                # Legacy PHP getSP() uses fetch() — first row only.
+                data = rows[0]
+            return bi_success_response(data)
         except BiDatabaseError as exc:
             return bi_error_response(exc.message)

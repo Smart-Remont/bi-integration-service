@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from ..auth import BigIntegrationBasicAuthDep
-from ..http import read_json_object
+from ..http import legacy_http_host, read_json_object
 from ..openapi_examples import LEGACY_BI_RESPONSE
 from src.openapi_helpers import integration_controller_description
 from .deps import SrPresetListServiceDep
@@ -30,5 +30,5 @@ async def sr_preset_list(
     body = await read_json_object(request)
     if isinstance(body, JSONResponse):
         return body
-    host = str(request.base_url).rstrip("/")
+    host = legacy_http_host(request)
     return await service.sr_preset_list(body, host)

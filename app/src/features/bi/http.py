@@ -8,6 +8,13 @@ from .responses import bi_error_response
 _INVALID_JSON_RU = "Неверный формат JSON"
 
 
+def legacy_http_host(request: Request) -> str:
+    """Mirror PHP ``getHttpHost()`` — scheme + Host header."""
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("host", request.url.netloc).split(",")[0].strip()
+    return f"{scheme}://{host}"
+
+
 async def read_json_object(request: Request) -> dict[str, object] | JSONResponse:
     """Parse a JSON object body; invalid input -> bi 400 envelope."""
     try:
