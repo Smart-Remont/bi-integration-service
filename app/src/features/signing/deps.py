@@ -6,7 +6,14 @@ from src.database.deps import DatabaseConnectionDep
 from src.features.factoring.ff.mynca import MyncaClient
 
 from .repo import SigningRepository
-from .services import AituFlowService, AituRedirectService, SigningCronService, SigningDownloadService, ThirdPartySignService
+from .services import (
+    AituFlowService,
+    AituRedirectService,
+    DidSignService,
+    SigningCronService,
+    SigningDownloadService,
+    ThirdPartySignService,
+)
 from .settings_repo import SigningSettingsRepository
 
 
@@ -22,13 +29,20 @@ def get_signing_settings_repo(connection: DatabaseConnectionDep) -> SigningSetti
     return SigningSettingsRepository(connection=connection)
 
 
+def _build_signing_repositories(
+    connection: DatabaseConnectionDep,
+) -> tuple[SigningRepository, SigningSettingsRepository]:
+    return SigningRepository(connection=connection), SigningSettingsRepository(connection=connection)
+
+
 def get_signing_cron_service(
     connection: DatabaseConnectionDep,
     mynca: Annotated[MyncaClient, Depends(get_mynca_client)],
 ) -> SigningCronService:
+    repo, settings = _build_signing_repositories(connection)
     return SigningCronService(
-        SigningRepository(connection=connection),
-        SigningSettingsRepository(connection=connection),
+        repo,
+        settings,
         mynca,
     )
 
@@ -37,17 +51,19 @@ def get_aitu_flow_service(
     connection: DatabaseConnectionDep,
     mynca: Annotated[MyncaClient, Depends(get_mynca_client)],
 ) -> AituFlowService:
+    repo, settings = _build_signing_repositories(connection)
     return AituFlowService(
-        SigningRepository(connection=connection),
-        SigningSettingsRepository(connection=connection),
+        repo,
+        settings,
         mynca,
     )
 
 
 def get_aitu_redirect_service(connection: DatabaseConnectionDep) -> AituRedirectService:
+    repo, settings = _build_signing_repositories(connection)
     return AituRedirectService(
-        SigningRepository(connection=connection),
-        SigningSettingsRepository(connection=connection),
+        repo,
+        settings,
     )
 
 
@@ -65,9 +81,13 @@ def get_third_party_sign_service(connection: DatabaseConnectionDep) -> ThirdPart
     return ThirdPartySignService(SigningRepository(connection=connection))
 
 
+def get_did_sign_service(connection: DatabaseConnectionDep) -> DidSignService:
+    return DidSignService(SigningRepository(connection=connection))
+
+
 SigningCronServiceDep = Annotated[SigningCronService, Depends(get_signing_cron_service)]
 AituFlowServiceDep = Annotated[AituFlowService, Depends(get_aitu_flow_service)]
 AituRedirectServiceDep = Annotated[AituRedirectService, Depends(get_aitu_redirect_service)]
 SigningDownloadServiceDep = Annotated[SigningDownloadService, Depends(get_signing_download_service)]
 ThirdPartySignServiceDep = Annotated[ThirdPartySignService, Depends(get_third_party_sign_service)]
-SigningRepositoryDep = Annotated[SigningRepository, Depends(get_signing_repo)]
+DidSignServiceDep = Annotated[DidSignService, Depends(get_did_sign_service)]

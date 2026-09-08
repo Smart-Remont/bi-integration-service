@@ -6,10 +6,12 @@ need to change during the cutover. This module extracts just that text.
 """
 
 import re
+from typing import TypeVar
 
 from asyncpg.exceptions import PostgresError
 
 _RAISE_MESSAGE_RE = re.compile(r"\{([^}]*)\}")
+DatabaseErrorT = TypeVar("DatabaseErrorT", bound=Exception)
 
 
 def clean_postgres_error_message(exc: PostgresError) -> str:
@@ -29,3 +31,11 @@ def find_postgres_error(exc: BaseException) -> PostgresError | None:
             return cause
         cause = cause.__cause__
     return None
+
+
+def map_to_database_error(exc: Exception, error_type: type[DatabaseErrorT]) -> DatabaseErrorT:
+    """Map asyncpg exception chains to a feature-specific DB error class."""
+    pg_error = find_postgres_error(exc)
+    if pg_error is not None:
+        return error_type(clean_postgres_error_message(pg_error))
+    return error_type(str(exc))

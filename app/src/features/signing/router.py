@@ -1,24 +1,62 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Awaitable
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.responses import StreamingResponse
 
+from src.http_response_utils import get_error_message, plain_from
 from src.openapi_helpers import add_cron_route, cron_description, legacy_integration_path
 
 from .deps import (
     AituFlowServiceDep,
     AituRedirectServiceDep,
+    DidSignServiceDep,
     SigningCronServiceDep,
     SigningDownloadServiceDep,
-    SigningRepositoryDep,
     ThirdPartySignServiceDep,
 )
 from .errors import SigningDatabaseError
 
 router = APIRouter(tags=["Signing (Aitu / DID / MyNCA)"])
+
+
+async def _plain(result: Awaitable[str]) -> PlainTextResponse:
+    return await plain_from(result, db_error=SigningDatabaseError)
+
+
+def _pdf_response(pdf_bytes: bytes, filename: str) -> StreamingResponse:
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+async def _download_response(result: Awaitable[tuple[bytes, str] | str]) -> Response:
+    try:
+        output = await result
+    except SigningDatabaseError as exc:
+        return PlainTextResponse(content=get_error_message(exc), status_code=500)
+    except Exception as exc:  # noqa: BLE001
+        return PlainTextResponse(content=get_error_message(exc), status_code=400)
+
+    if isinstance(output, str):
+        return PlainTextResponse(output)
+    pdf_bytes, filename = output
+    return _pdf_response(pdf_bytes, filename)
+
+
+async def _redirect(result: Awaitable[str]) -> Response:
+    try:
+        url = await result
+    except SigningDatabaseError as exc:
+        return PlainTextResponse(content=get_error_message(exc), status_code=500)
+    except Exception as exc:  # noqa: BLE001
+        return PlainTextResponse(content=get_error_message(exc), status_code=400)
+    return RedirectResponse(url=url, status_code=302)
 
 
 @add_cron_route(
@@ -34,10 +72,7 @@ router = APIRouter(tags=["Signing (Aitu / DID / MyNCA)"])
     ),
 )
 async def aitu_get_signs(service: SigningCronServiceDep) -> Response:
-    try:
-        return PlainTextResponse(await service.aitu_get_signs())
-    except SigningDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+    return await _plain(service.aitu_get_signs())
 
 
 @add_cron_route(
@@ -54,10 +89,7 @@ async def aitu_validate_signs(
     service: SigningCronServiceDep,
     did_id: int = Query(0, description="0 — обработать всю очередь verify"),
 ) -> Response:
-    try:
-        return PlainTextResponse(await service.aitu_validate_signs(did_id))
-    except SigningDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+    return await _plain(service.aitu_validate_signs(did_id))
 
 
 @add_cron_route(
@@ -70,10 +102,7 @@ async def aitu_validate_signs(
     ),
 )
 async def aitu_get_photos(service: SigningCronServiceDep) -> Response:
-    try:
-        return PlainTextResponse(await service.aitu_get_photos())
-    except SigningDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+    return await _plain(service.aitu_get_photos())
 
 
 @add_cron_route(
@@ -86,10 +115,7 @@ async def aitu_get_photos(service: SigningCronServiceDep) -> Response:
     ),
 )
 async def aitu_sign_detail(service: SigningCronServiceDep) -> Response:
-    try:
-        return PlainTextResponse(await service.aitu_sign_detail())
-    except SigningDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+    return await _plain(service.aitu_sign_detail())
 
 
 @add_cron_route(
@@ -102,10 +128,7 @@ async def aitu_sign_detail(service: SigningCronServiceDep) -> Response:
     ),
 )
 async def cron_auto_upload_sign_doc(service: SigningCronServiceDep) -> Response:
-    try:
-        return PlainTextResponse(await service.cron_auto_upload_sign_doc())
-    except SigningDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+    return await _plain(service.cron_auto_upload_sign_doc())
 
 
 @router.get(
@@ -118,13 +141,13 @@ async def cron_auto_upload_sign_doc(service: SigningCronServiceDep) -> Response:
     ),
 )
 async def did_sign(
-    repo: SigningRepositoryDep,
+    service: DidSignServiceDep,
     state: str = Query("", description="OAuth state из did_insert"),
 ) -> Response:
     try:
-        url = await repo.did_url_get(state)
+        url = await service.did_sign_url(state)
     except SigningDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+        return PlainTextResponse(content=get_error_message(exc), status_code=500)
     if not url:
         return PlainTextResponse(content="URL not found", status_code=404)
     return RedirectResponse(url=url, status_code=302)
@@ -143,13 +166,7 @@ async def perform_ds_did_sign(
     service: AituFlowServiceDep,
     uuid: str = Query("", description="UUID доп. соглашения"),
 ) -> Response:
-    try:
-        url = await service.perform_ds_did_sign(uuid)
-        return RedirectResponse(url=url, status_code=302)
-    except SigningDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
-    except Exception as exc:  # noqa: BLE001
-        return PlainTextResponse(content=str(exc), status_code=400)
+    return await _redirect(service.perform_ds_did_sign(uuid))
 
 
 @router.get(
@@ -165,13 +182,7 @@ async def perform_agreement_did_sign(
     service: AituFlowServiceDep,
     uuid: str = Query("", description="UUID client_request"),
 ) -> Response:
-    try:
-        url = await service.perform_agreement_did_sign(uuid)
-        return RedirectResponse(url=url, status_code=302)
-    except SigningDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
-    except Exception as exc:  # noqa: BLE001
-        return PlainTextResponse(content=str(exc), status_code=400)
+    return await _redirect(service.perform_agreement_did_sign(uuid))
 
 
 @router.get(
@@ -195,7 +206,7 @@ async def aitu_redirect(
         try:
             result = await service.handle_approve({k: str(v) for k, v in params.items()})
         except SigningDatabaseError as exc:
-            return HTMLResponse(f"<p>DB error: {exc.message}</p>", status_code=500)
+            return HTMLResponse(f"<p>DB error: {get_error_message(exc)}</p>", status_code=500)
         if result.get("ok"):
             return HTMLResponse(
                 f"<html><body><p>Подпись принята. state={result.get('state')}</p></body></html>"
@@ -232,23 +243,12 @@ async def download_ds(
     for_view: str | None = Query(None),
     is_base64: str | None = Query(None),
 ) -> Response:
-    try:
-        result = await service.download_ds(
+    return await _download_response(
+        service.download_ds(
             uuid,
             for_view=_parse_legacy_bool_param(for_view, default=True),
             is_base64=_parse_legacy_bool_param(is_base64, default=False),
         )
-    except SigningDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
-    except Exception as exc:  # noqa: BLE001
-        return PlainTextResponse(content=str(exc), status_code=400)
-    if isinstance(result, str):
-        return PlainTextResponse(result)
-    pdf_bytes, filename = result
-    return StreamingResponse(
-        iter([pdf_bytes]),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -268,23 +268,12 @@ async def download_agreement(
     for_view: str | None = Query("true"),
     is_base64: str | None = Query(None),
 ) -> Response:
-    try:
-        result = await service.download_agreement(
+    return await _download_response(
+        service.download_agreement(
             uuid,
             for_view=_parse_legacy_bool_param(for_view, default=True),
             is_base64=_parse_legacy_bool_param(is_base64, default=False),
         )
-    except SigningDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
-    except Exception as exc:  # noqa: BLE001
-        return PlainTextResponse(content=str(exc), status_code=400)
-    if isinstance(result, str):
-        return PlainTextResponse(result)
-    pdf_bytes, filename = result
-    return StreamingResponse(
-        iter([pdf_bytes]),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -312,8 +301,8 @@ async def third_party_app_sign_back(
         payload = await service.handle(params)
         return PlainTextResponse(json.dumps(payload, ensure_ascii=False))
     except SigningDatabaseError as exc:
-        payload = {"status": False, "value": None, "error": exc.message}
+        payload = {"status": False, "value": None, "error": get_error_message(exc)}
         return PlainTextResponse(json.dumps(payload, ensure_ascii=False), status_code=500)
     except Exception as exc:  # noqa: BLE001
-        payload = {"status": False, "value": None, "error": str(exc)}
+        payload = {"status": False, "value": None, "error": get_error_message(exc)}
         return PlainTextResponse(json.dumps(payload, ensure_ascii=False), status_code=400)

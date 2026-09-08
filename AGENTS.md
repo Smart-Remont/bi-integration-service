@@ -26,7 +26,7 @@ FastAPI-сервис — тонкий HTTP-слой над PostgreSQL stored fun
 
 Роуты без тела (`aitu-get-signs`, `sms`, `render-job-cron`, …) принимают **GET и POST** —
 один handler, логика как в PHP (метод не проверялся). Для crontab достаточно **GET**.
-OpenAPI показывает оба метода для совместимости при cutover.
+В OpenAPI/Scalar показан только **GET**; **POST** остаётся рабочим, но скрыт из схемы.
 
 Не смешивать паттерны между типами (Pydantic vs raw JSON vs plain `0`).
 

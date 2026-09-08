@@ -1,12 +1,34 @@
+from collections.abc import Awaitable
+from typing import Any
+
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
+from src.http_response_utils import get_error_message, plain_from
 from src.openapi_helpers import add_cron_route, cron_description, legacy_integration_path
 
 from .deps import WorkersServiceDep
 from .errors import WorkersDatabaseError
 
 router = APIRouter(tags=["Workers / Cron / BI sync"])
+
+
+async def _plain(result: Awaitable[str]) -> PlainTextResponse:
+    return await plain_from(result, db_error=WorkersDatabaseError)
+
+
+async def _json(
+    result: Awaitable[dict[str, Any]],
+    *,
+    wrap_result: bool = False,
+) -> JSONResponse:
+    try:
+        return JSONResponse(await result)
+    except WorkersDatabaseError as exc:
+        message = get_error_message(exc)
+        if wrap_result:
+            return JSONResponse({"result": {"status": False, "error": message}}, status_code=500)
+        return JSONResponse({"status": False, "error": message}, status_code=500)
 
 
 @router.get(
@@ -22,10 +44,7 @@ async def flat_list(
     service: WorkersServiceDep,
     guid: str = Query(""),
 ) -> JSONResponse:
-    try:
-        return JSONResponse(await service.flat_list(guid))
-    except WorkersDatabaseError as exc:
-        return JSONResponse({"status": False, "error": exc.message}, status_code=500)
+    return await _json(service.flat_list(guid))
 
 
 @add_cron_route(
@@ -38,10 +57,7 @@ async def flat_list(
     ),
 )
 async def send_bi_process(service: WorkersServiceDep) -> Response:
-    try:
-        return PlainTextResponse(await service.send_bi_process())
-    except WorkersDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+    return await _plain(service.send_bi_process())
 
 
 @add_cron_route(
@@ -54,10 +70,7 @@ async def send_bi_process(service: WorkersServiceDep) -> Response:
     ),
 )
 async def bi_resident_sync(service: WorkersServiceDep) -> Response:
-    try:
-        return PlainTextResponse(await service.bi_resident_sync())
-    except WorkersDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+    return await _plain(service.bi_resident_sync())
 
 
 @add_cron_route(
@@ -70,10 +83,7 @@ async def bi_resident_sync(service: WorkersServiceDep) -> Response:
     ),
 )
 async def flat_sync_auto(service: WorkersServiceDep) -> Response:
-    try:
-        return PlainTextResponse(await service.flat_sync_auto())
-    except WorkersDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+    return await _plain(service.flat_sync_auto())
 
 
 @add_cron_route(
@@ -86,10 +96,7 @@ async def flat_sync_auto(service: WorkersServiceDep) -> Response:
     ),
 )
 async def pdf_find_sum(service: WorkersServiceDep) -> Response:
-    try:
-        return PlainTextResponse(await service.pdf_find_sum())
-    except WorkersDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+    return await _plain(service.pdf_find_sum())
 
 
 @add_cron_route(
@@ -105,9 +112,9 @@ async def freedom_auth(service: WorkersServiceDep) -> Response:
     try:
         return PlainTextResponse(await service.freedom_auth())
     except WorkersDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+        return PlainTextResponse(content=get_error_message(exc), status_code=500)
     except Exception as exc:  # noqa: BLE001
-        return PlainTextResponse(content=str(exc), status_code=500)
+        return PlainTextResponse(content=get_error_message(exc), status_code=500)
 
 
 @router.post(
@@ -130,10 +137,7 @@ async def freedom_hook(request: Request, service: WorkersServiceDep) -> JSONResp
     ),
 )
 async def ddu_request_cancel(service: WorkersServiceDep) -> Response:
-    try:
-        return PlainTextResponse(await service.ddu_request_cancel())
-    except WorkersDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+    return await _plain(service.ddu_request_cancel())
 
 
 @add_cron_route(
@@ -146,10 +150,7 @@ async def ddu_request_cancel(service: WorkersServiceDep) -> Response:
     ),
 )
 async def render_job_cron(service: WorkersServiceDep) -> Response:
-    try:
-        return PlainTextResponse(await service.render_job_cron())
-    except WorkersDatabaseError as exc:
-        return PlainTextResponse(content=exc.message, status_code=500)
+    return await _plain(service.render_job_cron())
 
 
 @router.get(
@@ -164,10 +165,7 @@ async def planoplan(
     service: WorkersServiceDep,
     planirovka_id: int = Query(0),
 ) -> JSONResponse:
-    try:
-        return JSONResponse(await service.planoplan(planirovka_id))
-    except WorkersDatabaseError as exc:
-        return JSONResponse({"result": {"status": False, "error": exc.message}}, status_code=500)
+    return await _json(service.planoplan(planirovka_id), wrap_result=True)
 
 
 @router.get(
@@ -185,10 +183,7 @@ async def planoplan_mode(
     request: Request,
 ) -> JSONResponse:
     params = {k: str(v) for k, v in request.query_params.items()}
-    try:
-        return JSONResponse(await service.planoplan_mode(mode, params))
-    except WorkersDatabaseError as exc:
-        return JSONResponse({"result": {"status": False, "error": exc.message}}, status_code=500)
+    return await _json(service.planoplan_mode(mode, params), wrap_result=True)
 
 
 @router.get(
@@ -206,7 +201,4 @@ async def set_folder_name(
     planirovka_id: int = Query(0),
     folder_name: str = Query(""),
 ) -> JSONResponse:
-    try:
-        return JSONResponse(await service.set_folder_name(planirovka_id, folder_name))
-    except WorkersDatabaseError as exc:
-        return JSONResponse({"result": {"status": False, "error": exc.message}}, status_code=500)
+    return await _json(service.set_folder_name(planirovka_id, folder_name), wrap_result=True)

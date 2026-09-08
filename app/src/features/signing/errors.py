@@ -1,4 +1,4 @@
-from src.pg_error_utils import clean_postgres_error_message, find_postgres_error
+from src.pg_error_utils import map_to_database_error
 
 
 class SigningDatabaseError(Exception):
@@ -8,7 +8,4 @@ class SigningDatabaseError(Exception):
 
 
 def to_signing_database_error(exc: Exception) -> SigningDatabaseError:
-    pg_error = find_postgres_error(exc)
-    if pg_error is not None:
-        return SigningDatabaseError(clean_postgres_error_message(pg_error))
-    return SigningDatabaseError(str(exc))
+    return map_to_database_error(exc, SigningDatabaseError)

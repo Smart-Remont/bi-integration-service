@@ -99,6 +99,11 @@ class LeadsService:
         rows = await self.repo.tilda_project_read()
         return list(rows) if rows else []
 
+    async def tilda_project_list(self, mode: str) -> dict[str, Any]:
+        if mode == "get_projects":
+            return await self.tilda_project_list_get_projects()
+        return {"value": await self.tilda_project_list_read()}
+
     async def tilda_api_export(self, project_id: int) -> dict[str, Any]:
         export_dir = Path(leads_config.tilda_export_dir or "")
         if not export_dir:
