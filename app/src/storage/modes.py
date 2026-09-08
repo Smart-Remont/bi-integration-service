@@ -51,6 +51,8 @@ class FileStoreMode(StrEnum):
     CMS_WHY_WE_ICON = "CMS_WHY_WE_ICON"
     CMS_BRIEF = "CMS_BRIEF"
     CMS_CONTACT_INFO_ICON = "CMS_CONTACT_INFO_ICON"
+    CMS_ABOUT_IMG = "CMS_ABOUT_IMG"
+    CMS_PARTNER_IMG = "CMS_PARTNER_IMG"
 
 
 FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
@@ -94,6 +96,8 @@ FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
     FileStoreMode.CMS_WHY_WE_ICON: "Иконка блока «Почему мы» (CMS)",
     FileStoreMode.CMS_BRIEF: "Файл брифа (CMS)",
     FileStoreMode.CMS_CONTACT_INFO_ICON: "Иконка контактной информации footer (CMS)",
+    FileStoreMode.CMS_ABOUT_IMG: "Картинка блока «О компании» (CMS)",
+    FileStoreMode.CMS_PARTNER_IMG: "Картинка блока «Партнёры» (CMS)",
 }
 
 # Same folders/prefixes as KanbanController::srfileUploadAction.
@@ -139,6 +143,8 @@ MODE_PATH_TEMPLATES: dict[FileStoreMode, str] = {
     FileStoreMode.CMS_WHY_WE_ICON: "/documents/{date}/cms_why_we/icon_{uniq}.{ext}",
     FileStoreMode.CMS_BRIEF: "/documents/{date}/cms_brief/brief_{uniq}.{ext}",
     FileStoreMode.CMS_CONTACT_INFO_ICON: "/documents/{date}/cms_contact_info/icon_{uniq}.{ext}",
+    FileStoreMode.CMS_ABOUT_IMG: "/documents/{date}/cms_about/img_{uniq}.{ext}",
+    FileStoreMode.CMS_PARTNER_IMG: "/documents/{date}/cms_partner/img_{uniq}.{ext}",
 }
 
 
