@@ -97,7 +97,7 @@ HTTP
 Примеры feature-модулей:
 
 - `app/src/features/ddu_contractor/` — внутренний API `/api/v1/...`
-- `app/src/features/big_integration/` — legacy-интеграции `/api/big_integration/...` (см. [AGENTS.md](AGENTS.md))
+- `app/src/features/big_integration/` — BIG Integration `/api/big_integration/...` ([docs/big-integration.md](docs/big-integration.md))
 
 ## Структура проекта
 

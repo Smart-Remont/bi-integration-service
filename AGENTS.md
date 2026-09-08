@@ -11,15 +11,17 @@ FastAPI-сервис — тонкий HTTP-слой над PostgreSQL stored fun
 | Тип | Префикс | Пример | Шаблон |
 |-----|---------|--------|--------|
 | Внутренний REST API | `/api/v1/...` | `GET /api/v1/ddu_contractors` | `features/ddu_contractor/` |
-| Legacy big integration | `/api/big_integration/...` | `POST /api/big_integration/request-event-v3` | `features/big_integration/<endpoint>/` |
+| BIG Integration | `/api/big_integration/...` | `POST /api/big_integration/request-event-v3` | `features/big_integration/<endpoint>/` |
 
 Не смешивать паттерны между типами.
 
 ---
 
-## Big integration (legacy-замена Zend)
+## BIG Integration
 
-Используется для эндпоинтов, которые раньше жили в PHP (`IntegrationController`): Basic Auth, сырой JSON в SP, ответ в legacy envelope `data/response/error`.
+API интеграции ДДУ (BIG). Документация: **[docs/big-integration.md](docs/big-integration.md)**.
+
+Basic Auth, JSON-тело без Pydantic (валидация в SP), ответ в envelope `data/response/error`.
 
 ### Структура
 
@@ -29,7 +31,7 @@ features/big_integration/
 ├── db.py                # scalar_from_sp_rows()
 ├── errors.py            # BigIntegrationDatabaseError, текст из PostgreSQL {…}
 ├── http.py              # read_json_object() — парсинг тела
-├── responses.py         # legacy envelope: {"data","response","error"}
+├── responses.py         # envelope {"data","response","error"}
 ├── router.py            # агрегатор под-роутеров
 └── <endpoint_name>/
     ├── deps.py
@@ -48,13 +50,29 @@ features/big_integration/
 
 Пример: `POST /api/big_integration/request-event-v3`.
 
+**Эндпоинты** (auth `INTEGRATION_HS_BI_*`):
+
+| Route | Method | БД |
+|-------|--------|-----|
+| `request-create-v3` | POST | `ddu__create_request_v2` → `ddu__request_get` |
+| `request-event-v3` | POST | `ddu__request_event_v3` → `ddu__request_get` |
+| `repair-pack-prices` | POST | `ddu_repair_pack_info__get` |
+| `ddu-flat-info-multiple` | POST | `ddu_flat_info_multiple` |
+| `ddu-resident-agreement-status` | POST | `ddu_resident_agreement__log_insert` |
+| `request-info` | GET | `ddu_request_info` |
+| `request-status-info` | GET | `ddu_request_and_status_info` |
+| `ddu-request-info` | GET | `ddu_request_info_by_client_request` |
+| `ddu-flat-info` | GET | `ddu_flat_info` |
+| `request-constructives` | POST | `ddu_client_material__read`, `ddu_client_filling__read`, `ddu_request_full_info` |
+| `big-notify-client` | POST | `big_notify_client` |
+
 ### HTTP-контракт
 
 **Auth:** `Authorization: Basic`, пользователь/пароль из `INTEGRATION_HS_BI_USER`, `INTEGRATION_HS_BI_PASSWORD` (`app/src/config.py`).
 
 **Запрос:** `Content-Type: application/json`, тело передаётся в SP **без Pydantic-валидации** (все проверки в БД).
 
-**Успех (200):** тело = legacy envelope, где `data` — **первая строка refcursor** как JSON-объект (ключи и `null` как вернул PostgreSQL):
+**Успех (200):** envelope, где `data` — **первая строка refcursor** как JSON-объект (ключи и `null` как вернул PostgreSQL):
 
 ```json
 {

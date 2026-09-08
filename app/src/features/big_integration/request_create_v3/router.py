@@ -10,11 +10,9 @@ router = APIRouter()
 
 @router.post(
     "/request-create-v3",
-    summary="Создать заявку ДДУ",
+    summary="Создание заявки",
     description=(
-        "Создаёт новую заявку (`sp: rest.ddu__create_request_v2`) и возвращает её состояние "
-        "(`rest.ddu__request_get`). Валидация полей — внутри stored function; при ошибке — "
-        "`error.message` из PostgreSQL."
+        "**БД:** `ddu__create_request_v2` → `ddu__request_get`"
     ),
 )
 async def request_create_v3(

@@ -10,10 +10,10 @@ router = APIRouter()
 
 @router.post(
     "/ddu-flat-info-multiple",
-    summary="Информация по нескольким квартирам ДДУ",
+    summary="Заявки по списку квартир",
     description=(
-        "Принимает список `flat_guids` и возвращает информацию по каждой квартире "
-        "(`sp: rest.ddu_flat_info_multiple`). `flat_guids` обязателен и не может быть пустым."
+        "**БД:** `ddu_flat_info_multiple`\n\n"
+        "Тело: `{ \"flat_guids\": [...] }`, массив обязателен."
     ),
 )
 async def ddu_flat_info_multiple(

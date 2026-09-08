@@ -27,12 +27,10 @@ OPENAPI_TAGS = [
         ),
     },
     {
-        "name": "Big Integration",
+        "name": "BIG Integration",
         "description": (
-            "Legacy-замена Zend `IntegrationController` для интеграций ДДУ. Basic Auth, тело "
-            "запроса без Pydantic-валидации (проверки в stored function), ответ в едином "
-            "envelope `{\"data\", \"response\", \"error\"}`. `data` — первая строка refcursor "
-            "как есть из PostgreSQL, ошибка (500) кладётся в `error.message`."
+            "BIG Integration — API ДДУ. Basic Auth (`INTEGRATION_HS_BI_*`). "
+            "Имя функции БД — в description операции. `docs/big-integration.md`."
         ),
     },
     {
@@ -65,13 +63,14 @@ app = FastAPI(
         "| Тип | Префикс | Auth | Формат ответа |\n"
         "|---|---|---|---|\n"
         "| Внутренний REST | `/api/v1/...` | Basic Auth | Pydantic-схемы, стандартные HTTP-коды |\n"
-        "| Big Integration (legacy) | `/api/big_integration/...` | Basic Auth | envelope `{data, response, error}` |\n\n"
+        "| BIG Integration | `/api/big_integration/...` | Basic Auth | envelope `{data, response, error}` |\n\n"
         "Вся бизнес-логика и валидация — в PostgreSQL stored functions (`asyncpg`, без ORM); "
         "этот сервис — тонкий транспортный слой поверх них.\n\n"
         "### Провайдеры\n\n"
         "- **Freedom Finance** — онлайн-рассрочка (`installment`) и факторинг (`factoring`), "
         "обе заявки хранятся в одной таблице `installment_application_tab` (`product_type`).\n"
         "- **MyNCA** — электронная подпись документов для факторинга.\n"
+        "- **BIG Integration** — API ДДУ (`/api/big_integration/...`, см. `docs/big-integration.md`).\n"
         "- **File Storage** — прямой MinIO для `/documents/...` (`MINIO_*`, `STORAGE_PUBLIC_URL`).\n"
     ),
     version="0.1.0",

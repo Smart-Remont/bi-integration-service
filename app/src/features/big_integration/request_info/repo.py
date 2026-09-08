@@ -1,0 +1,30 @@
+from src.repository import BaseRepository
+from src.repository.base import SpRow
+
+from ..constants import DDU_MODULE_CODE
+from ..errors import to_big_integration_database_error
+
+
+class RequestInfoRepository(BaseRepository):
+    async def ddu_request_info(
+        self,
+        deal_id: object | None,
+        application_id: object | None,
+        order_id: object | None,
+    ) -> SpRow | None:
+        try:
+            rows = await self.call_sp(
+                "rest.ddu_request_info",
+                deal_id,
+                application_id,
+                order_id,
+                cursor=True,
+                module_code=DDU_MODULE_CODE,
+            )
+        except Exception as exc:
+            raise to_big_integration_database_error(exc) from exc
+
+        if not rows:
+            return None
+
+        return rows[0]

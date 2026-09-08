@@ -10,11 +10,10 @@ router = APIRouter()
 
 @router.post(
     "/repair-pack-prices",
-    summary="Цены ремонтных пакетов по списку планировок",
+    summary="Цены пакетов",
     description=(
-        "Принимает `placementUUIDs` (до 10 000 элементов) и возвращает цену подходящего "
-        "пакета для каждой планировки. По каждому элементу — свой `status`/`error` в ответе, "
-        "один неудачный `placementUUID` не обрывает весь запрос."
+        "**БД:** `ddu_repair_pack_info__get` (на каждый GUID)\n\n"
+        "До 10 000 `placementUUIDs`; ошибка по одному элементу не прерывает batch."
     ),
 )
 async def repair_pack_prices(

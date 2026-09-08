@@ -10,11 +10,9 @@ router = APIRouter()
 
 @router.post(
     "/request-event-v3",
-    summary="Обновить статус заявки ДДУ (событие)",
+    summary="Событие по заявке",
     description=(
-        "Принимает событие по существующей заявке (`sp: rest.ddu__request_event_v3`) и "
-        "возвращает актуальное состояние заявки (`rest.ddu__request_get`). Валидация полей — "
-        "внутри stored function; при ошибке — `error.message` из PostgreSQL."
+        "**БД:** `ddu__request_event_v3` → `ddu__request_get`"
     ),
 )
 async def request_event_v3(
