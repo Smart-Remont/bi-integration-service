@@ -113,7 +113,7 @@ features/ddu_export/
 | `ddu-room-list` | GET | `ddu_room_list` |
 | `ddu-room-type-list` | GET | `ddu_room_type_list` |
 
-**Не перенесено:** `export-table-read` (SP `rest.export_table_read` не существует в БД + security risk generic-дампа таблиц), `sms-notify-status` (не ДДУ-домен, см. этап 6 SMS/Kcell).
+**Не перенесено:** `export-table-read` (SP `rest.export_table_read` не существует в БД + security risk generic-дампа таблиц). `sms-notify-status` перенесён в `features/sms/` (этап 6).
 
 ---
 
@@ -155,6 +155,30 @@ features/legacy_bi/
 **Не перенесено** (SP не существует в БД или сигнатура разошлась с PHP-моделью):
 `crm-create-client-request-empty`, `crm-create-client-request-agreement`, `create-request`,
 `sr-remont-report`.
+
+---
+
+## SMS / Kcell API
+
+Cron/webhook из legacy `IntegrationController` — **без Basic Auth** (как PHP cron actions).
+Kcell credentials в env (`KCELL_HERMES_*`, `KCELL_BATCH_*`), не в коде.
+
+### URL
+
+```text
+/api + /sms + /<route>
+```
+
+| Route | Method | БД / внешнее |
+|-------|--------|--------------|
+| `sms` | GET/POST | `client.sms_number_read` → Kcell Hermes → `client.sms_set_result` |
+| `sms-notify` | GET/POST | `notify.sms_notify__read` → Hermes → `notify.sms_notify_result__set` |
+| `sms-notify-status` | GET/POST | `notify.sms_notify_batch__read` → Kcell batch API → `notify.sms_notify_status__set` |
+| `call-processing` | POST | `sale.client_call_hist_tab__insert` (urlencoded webhook) |
+
+---
+
+## BIG Integration — HTTP-контракт
 
 ### HTTP-контракт
 

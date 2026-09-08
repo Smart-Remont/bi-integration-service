@@ -18,12 +18,17 @@ class APILegacyBiPrefixConfig:
     prefix: str = "/legacy_bi"
 
 
+class APISmsPrefixConfig:
+    prefix: str = "/sms"
+
+
 class APIPrefixConfig:
     prefix: str = "/api"
     v1: APIV1PrefixConfig = APIV1PrefixConfig()
     big_integration: APIBigIntegrationPrefixConfig = APIBigIntegrationPrefixConfig()
     ddu_export: APIDduExportPrefixConfig = APIDduExportPrefixConfig()
     legacy_bi: APILegacyBiPrefixConfig = APILegacyBiPrefixConfig()
+    sms: APISmsPrefixConfig = APISmsPrefixConfig()
 
 
 api_prefix_config = APIPrefixConfig()

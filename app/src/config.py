@@ -94,6 +94,17 @@ class AppConfig:
     env: str = os.getenv("APP_ENV", "stage")
 
 
+class KcellConfig:
+    """Kcell Hermes SMS + batch status polling (legacy ``kcell_send_sms`` / ``kcell_check_batch_status``)."""
+
+    hermes_base_url: str = os.getenv("KCELL_HERMES_BASE_URL", "https://api-cpa.kcell.kz/hermes")
+    hermes_user: str = os.getenv("KCELL_HERMES_USER", "")
+    hermes_password: str = os.getenv("KCELL_HERMES_PASSWORD", "")
+    batch_base_url: str = os.getenv("KCELL_BATCH_BASE_URL", "https://msg.kcell.kz/api/v3/batches")
+    batch_user: str = os.getenv("KCELL_BATCH_USER", "")
+    batch_password: str = os.getenv("KCELL_BATCH_PASSWORD", "")
+
+
 class MinioConfig:
     """MinIO / S3-compatible storage — same keys as smremont `application.ini` → minio.*."""
 
@@ -138,5 +149,6 @@ storage_auth_config = StorageAuthConfig()
 factoring_prescoring_config = FactoringPrescoringConfig()
 mynca_config = MyncaConfig()
 app_config = AppConfig()
+kcell_config = KcellConfig()
 minio_config = MinioConfig()
 file_store_config = FileStoreConfig()

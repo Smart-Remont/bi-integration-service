@@ -51,6 +51,14 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "SMS / Kcell",
+        "description": (
+            "Cron/webhook SMS и звонков Kcell: очереди `client`/`notify`, poll batch status, "
+            "webhook call-processing. Credentials: `KCELL_HERMES_*`, `KCELL_BATCH_*`. "
+            "Без HTTP auth (как legacy cron actions)."
+        ),
+    },
+    {
         "name": "File Storage",
         "description": (
             "Async-загрузка файлов напрямую в MinIO (S3). Контракт `{filename, path, ext}` "
@@ -90,6 +98,7 @@ app = FastAPI(
         "- **BIG Integration** — API ДДУ (`/api/big_integration/...`, см. `docs/big-integration.md`).\n"
         "- **DDU Export** — справочники ДДУ (`/api/ddu_export/...`), отдельный Basic Auth.\n"
         "- **Legacy BI/CRM** — `/api/legacy_bi/...`, см. `docs/legacy-bi.md`.\n"
+        "- **SMS / Kcell** — cron `/api/sms/...` (Hermes + batch poll + call webhook).\n"
         "- **File Storage** — прямой MinIO для `/documents/...` (`MINIO_*`, `STORAGE_PUBLIC_URL`).\n"
     ),
     version="0.1.0",
