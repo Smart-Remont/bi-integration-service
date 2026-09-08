@@ -178,6 +178,22 @@ Kcell credentials в env (`KCELL_HERMES_*`, `KCELL_BATCH_*`), не в коде.
 
 ---
 
+## Payments API (Sber / Forte / Paybox)
+
+Redirect/callback/cron. Без HTTP auth. `/api/payments/...`
+
+| Route | Legacy | Статус |
+|-------|--------|--------|
+| `sberbank-callback` | `sberbankCallbackAction` | активен в PHP |
+| `sberbank-check-payment-status` | cron | активен |
+| `sberbank-pay/mode/{mode}` | register/postlink | PHP был с `return;`, логика перенесена |
+| `forte-pay/mode/{mode}` | register/callbacks/cron | write SP `forte_*` **нет в pg_proc** |
+| `paybox/mode/{mode}` | init/cron | `PAYBOX_ENABLED=false` по умолчанию |
+
+Env: `SBERBANK_*`, `PAYMENTS_PUBLIC_BASE_URL`, `FORTE_*` / DB settings, `PAYBOX_*`.
+
+---
+
 ## BIG Integration — HTTP-контракт
 
 ### HTTP-контракт
