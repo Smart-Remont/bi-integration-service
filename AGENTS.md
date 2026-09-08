@@ -67,8 +67,10 @@ features/big_integration/
 | `remont-preset-list-v2` | POST | `ddu__preset_list_v2`, `render_*` |
 | `remont-preset` | POST | `ddu__preset_list_v2`, `render_filling__*` |
 | `big-notify-client` | POST | `big_notify_client` |
-
-Legacy DDU v1 (`request-create`, `request-event`, `remont-preset-list`) — отдельный этап 5 при полном cutover PHP.
+| `request-create` | POST | `ddu__create_request` → `ddu__request_get` (legacy v1, `deprecated=True`) |
+| `request-create-v2` | POST | `ddu__create_request_v2` → `ddu__request_get`, без `client_request_id` (legacy v2, `deprecated=True`) |
+| `request-event` | POST | `ddu__request_event` → `ddu__request_get`, без `client_request_id` (legacy v1, `deprecated=True`) |
+| `remont-preset-list` | POST | `ddu__preset_list` (legacy v1, `deprecated=True`) |
 
 Остальной `IntegrationController` — отдельные модули `features/*` (export ✅, BI ✅, SMS, payments, signing, leads). См. `agent-memory/big-integration-cutover/README.md`.
 
