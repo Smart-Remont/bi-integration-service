@@ -45,6 +45,12 @@ class FileStoreMode(StrEnum):
     CLIENT_REQUEST_DOC = "CLIENT_REQUEST_DOC"
     LAYER = "LAYER"
     DESIGN_ROOM = "DESIGN_ROOM"
+    # myspace-only: office CMS (`/landing/*`) cutover, no legacy PHP counterpart.
+    CMS_BANNER = "CMS_BANNER"
+    CMS_BANNER_MOBILE = "CMS_BANNER_MOBILE"
+    CMS_WHY_WE_ICON = "CMS_WHY_WE_ICON"
+    CMS_BRIEF = "CMS_BRIEF"
+    CMS_CONTACT_INFO_ICON = "CMS_CONTACT_INFO_ICON"
 
 
 FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
@@ -83,6 +89,11 @@ FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
     FileStoreMode.CLIENT_REQUEST_DOC: "Документ заявки (дефекты)",
     FileStoreMode.LAYER: "Слой пресета (constructor)",
     FileStoreMode.DESIGN_ROOM: "Базовое фото комнаты (design_room)",
+    FileStoreMode.CMS_BANNER: "Баннер CMS (десктоп)",
+    FileStoreMode.CMS_BANNER_MOBILE: "Баннер CMS (мобилка)",
+    FileStoreMode.CMS_WHY_WE_ICON: "Иконка блока «Почему мы» (CMS)",
+    FileStoreMode.CMS_BRIEF: "Файл брифа (CMS)",
+    FileStoreMode.CMS_CONTACT_INFO_ICON: "Иконка контактной информации footer (CMS)",
 }
 
 # Same folders/prefixes as KanbanController::srfileUploadAction.
@@ -123,6 +134,11 @@ MODE_PATH_TEMPLATES: dict[FileStoreMode, str] = {
     FileStoreMode.CLIENT_REQUEST_DOC: "/documents/{date}/client_request_docs/client_request_doc_{n}_{uniq}.{ext}",
     FileStoreMode.LAYER: "/documents/{date}/layer/layer_{uniq}.{ext}",
     FileStoreMode.DESIGN_ROOM: "/documents/{date}/design_room/design_room_{uniq}.{ext}",
+    FileStoreMode.CMS_BANNER: "/documents/{date}/cms_banner/banner_{uniq}.{ext}",
+    FileStoreMode.CMS_BANNER_MOBILE: "/documents/{date}/cms_banner/mobile/banner_mobile_{uniq}.{ext}",
+    FileStoreMode.CMS_WHY_WE_ICON: "/documents/{date}/cms_why_we/icon_{uniq}.{ext}",
+    FileStoreMode.CMS_BRIEF: "/documents/{date}/cms_brief/brief_{uniq}.{ext}",
+    FileStoreMode.CMS_CONTACT_INFO_ICON: "/documents/{date}/cms_contact_info/icon_{uniq}.{ext}",
 }
 
 
