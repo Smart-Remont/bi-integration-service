@@ -53,6 +53,10 @@ class FileStoreMode(StrEnum):
     CMS_CONTACT_INFO_ICON = "CMS_CONTACT_INFO_ICON"
     CMS_ABOUT_IMG = "CMS_ABOUT_IMG"
     CMS_PARTNER_IMG = "CMS_PARTNER_IMG"
+    CMS_CONSTRUCTOR_REMONT_PHOTO = "CMS_CONSTRUCTOR_REMONT_PHOTO"
+    CMS_REVIEW_AVATAR = "CMS_REVIEW_AVATAR"
+    CMS_TEAM_PHOTO = "CMS_TEAM_PHOTO"
+    CMS_BEST_REMONT_RESIDENT_PHOTO = "CMS_BEST_REMONT_RESIDENT_PHOTO"
 
 
 FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
@@ -98,6 +102,10 @@ FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
     FileStoreMode.CMS_CONTACT_INFO_ICON: "Иконка контактной информации footer (CMS)",
     FileStoreMode.CMS_ABOUT_IMG: "Картинка блока «О компании» (CMS)",
     FileStoreMode.CMS_PARTNER_IMG: "Картинка блока «Партнёры» (CMS)",
+    FileStoreMode.CMS_CONSTRUCTOR_REMONT_PHOTO: "Фото блока «Конструктор ремонта» (CMS)",
+    FileStoreMode.CMS_REVIEW_AVATAR: "Аватар отзыва (CMS)",
+    FileStoreMode.CMS_TEAM_PHOTO: "Фото сотрудника команды (CMS)",
+    FileStoreMode.CMS_BEST_REMONT_RESIDENT_PHOTO: "Фото «Лучшие резиденты» (CMS)",
 }
 
 # Same folders/prefixes as KanbanController::srfileUploadAction.
@@ -145,6 +153,10 @@ MODE_PATH_TEMPLATES: dict[FileStoreMode, str] = {
     FileStoreMode.CMS_CONTACT_INFO_ICON: "/documents/{date}/cms_contact_info/icon_{uniq}.{ext}",
     FileStoreMode.CMS_ABOUT_IMG: "/documents/{date}/cms_about/img_{uniq}.{ext}",
     FileStoreMode.CMS_PARTNER_IMG: "/documents/{date}/cms_partner/img_{uniq}.{ext}",
+    FileStoreMode.CMS_CONSTRUCTOR_REMONT_PHOTO: "/documents/{date}/cms_constructor_remont/photo_{uniq}.{ext}",
+    FileStoreMode.CMS_REVIEW_AVATAR: "/documents/{date}/cms_reviews/avatar_{uniq}.{ext}",
+    FileStoreMode.CMS_TEAM_PHOTO: "/documents/{date}/cms_team/photo_{uniq}.{ext}",
+    FileStoreMode.CMS_BEST_REMONT_RESIDENT_PHOTO: "/documents/{date}/cms_best_remont_resident/photo_{uniq}.{ext}",
 }
 
 
