@@ -22,6 +22,10 @@ class APISmsPrefixConfig:
     prefix: str = "/sms"
 
 
+class APIPaymentsPrefixConfig:
+    prefix: str = "/payments"
+
+
 class APIPrefixConfig:
     prefix: str = "/api"
     v1: APIV1PrefixConfig = APIV1PrefixConfig()
@@ -29,6 +33,7 @@ class APIPrefixConfig:
     ddu_export: APIDduExportPrefixConfig = APIDduExportPrefixConfig()
     legacy_bi: APILegacyBiPrefixConfig = APILegacyBiPrefixConfig()
     sms: APISmsPrefixConfig = APISmsPrefixConfig()
+    payments: APIPaymentsPrefixConfig = APIPaymentsPrefixConfig()
 
 
 api_prefix_config = APIPrefixConfig()

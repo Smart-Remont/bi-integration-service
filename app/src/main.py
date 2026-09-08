@@ -51,6 +51,14 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "Payments",
+        "description": (
+            "Sber / Forte / Paybox — redirect flows, bank callbacks, status cron. "
+            "Credentials: ``SBERBANK_*``, ``FORTE_*`` / DB settings, ``PAYBOX_*``. "
+            "Без HTTP auth (как legacy payment actions)."
+        ),
+    },
+    {
         "name": "SMS / Kcell",
         "description": (
             "Cron/webhook SMS и звонков Kcell: очереди `client`/`notify`, poll batch status, "
@@ -99,6 +107,7 @@ app = FastAPI(
         "- **DDU Export** — справочники ДДУ (`/api/ddu_export/...`), отдельный Basic Auth.\n"
         "- **Legacy BI/CRM** — `/api/legacy_bi/...`, см. `docs/legacy-bi.md`.\n"
         "- **SMS / Kcell** — cron `/api/sms/...` (Hermes + batch poll + call webhook).\n"
+        "- **Payments** — Sber/Forte/Paybox `/api/payments/...`.\n"
         "- **File Storage** — прямой MinIO для `/documents/...` (`MINIO_*`, `STORAGE_PUBLIC_URL`).\n"
     ),
     version="0.1.0",

@@ -105,6 +105,33 @@ class KcellConfig:
     batch_password: str = os.getenv("KCELL_BATCH_PASSWORD", "")
 
 
+class SberbankConfig:
+    user: str = os.getenv("SBERBANK_USER", "")
+    password: str = os.getenv("SBERBANK_PASSWORD", "")
+    password_test: str = os.getenv("SBERBANK_PASSWORD_TEST", "")
+    test_mode: bool = os.getenv("SBERBANK_TEST_MODE", "").lower() in ("1", "true", "yes")
+    base_url_prod: str = "https://securepayments.sberbank.kz/payment/rest"
+    base_url_test: str = "https://3dsec.sberbank.kz/payment/rest"
+
+
+class PaymentsConfig:
+    """Public base URL for payment return/redirect links (legacy ``getHttpHost()``)."""
+
+    public_base_url: str = (
+        os.getenv("PAYMENTS_PUBLIC_BASE_URL")
+        or os.getenv("OFFICE_PUBLIC_URL")
+        or "https://office.smartremont.kz"
+    ).rstrip("/")
+    paybox_enabled: bool = os.getenv("PAYBOX_ENABLED", "false").lower() in ("1", "true", "yes")
+    forte_url: str = os.getenv("FORTE_URL", "")
+    forte_merchant: str = os.getenv("FORTE_MERCHANT", "")
+    paybox_merchant: str = os.getenv("PAYBOX_MERCHANT", "")
+    paybox_salt: str = os.getenv("PAYBOX_SALT", "")
+    paybox_secret_key: str = os.getenv("PAYBOX_SECRET_KEY", "")
+    paybox_init_url: str = os.getenv("PAYBOX_INIT_URL", "")
+    paybox_status_url: str = os.getenv("PAYBOX_STATUS_URL", "")
+
+
 class MinioConfig:
     """MinIO / S3-compatible storage — same keys as smremont `application.ini` → minio.*."""
 
@@ -150,5 +177,7 @@ factoring_prescoring_config = FactoringPrescoringConfig()
 mynca_config = MyncaConfig()
 app_config = AppConfig()
 kcell_config = KcellConfig()
+sberbank_config = SberbankConfig()
+payments_config = PaymentsConfig()
 minio_config = MinioConfig()
 file_store_config = FileStoreConfig()
