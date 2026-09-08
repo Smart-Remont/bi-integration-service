@@ -1,20 +1,29 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
+from src.openapi_helpers import legacy_integration_path
+
 from .deps import PayboxPayServiceDep
 
 router = APIRouter()
 
-
-@router.api_route(
-    "/paybox/mode/{mode}",
-    methods=["GET", "POST"],
-    summary="Paybox pay (legacy multi-mode)",
-    description="Modes: ``init``, ``status`` (cron). Disabled unless ``PAYBOX_ENABLED=true``.",
+_DESC = (
+    "Modes: `init`, `status` (cron). Disabled unless `PAYBOX_ENABLED=true`.\n"
+    "POST также принимается (скрыт)."
+    + legacy_integration_path("paybox/mode/{mode}")
 )
-@router.api_route(
+
+
+@router.get("/paybox/mode/{mode}", summary="payboxPayAction", description=_DESC)
+@router.post("/paybox/mode/{mode}", include_in_schema=False)
+@router.get(
     "/paybox/mode/{mode}/request/{request_hash}/payment/{payment_hash}",
-    methods=["GET", "POST"],
+    summary="payboxPayAction — path с hash",
+    description=_DESC,
+)
+@router.post(
+    "/paybox/mode/{mode}/request/{request_hash}/payment/{payment_hash}",
+    include_in_schema=False,
 )
 async def paybox_pay(
     mode: str,

@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse, Response
 
+from src.openapi_helpers import legacy_integration_path
+
 from ..errors import PaymentsDatabaseError
 from ..sberbank_client import SberbankClientError
 from .deps import SberbankCallbackServiceDep, merge_request_params
@@ -8,12 +10,15 @@ from .deps import SberbankCallbackServiceDep, merge_request_params
 router = APIRouter()
 
 
-@router.api_route(
+@router.post(
     "/sberbank-callback",
-    methods=["GET", "POST"],
-    summary="Sberbank deposit webhook",
-    description="Legacy ``sberbankCallbackAction``: callback от Sber → SP + ``insert_sbebank_pay_log``.",
+    summary="sberbankCallbackAction — webhook Sber",
+    description=(
+        "Callback от Sber (query/body) → SP + `insert_sbebank_pay_log`. GET также принимается (скрыт)."
+        + legacy_integration_path("sberbank-callback")
+    ),
 )
+@router.get("/sberbank-callback", include_in_schema=False)
 async def sberbank_callback(
     request: Request,
     service: SberbankCallbackServiceDep,

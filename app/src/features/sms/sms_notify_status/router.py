@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse, Response
 
+from src.openapi_helpers import add_cron_route, cron_description
+
 from ..errors import SmsDatabaseError
 from ..kcell_client import KcellClientError
 from .deps import SmsNotifyStatusServiceDep
@@ -8,13 +10,14 @@ from .deps import SmsNotifyStatusServiceDep
 router = APIRouter()
 
 
-@router.api_route(
+@add_cron_route(
+    router,
     "/sms-notify-status",
-    methods=["GET", "POST"],
-    summary="Poll статусов Kcell batch для notify",
-    description=(
-        "Cron: `notify.sms_notify_batch__read` → Kcell batch API → "
-        "`notify.sms_notify_status__set`. Пусто → `No batches to check.`"
+    summary="Cron: smsNotifyStatusAction — poll batch Kcell",
+    description=cron_description(
+        "`notify.sms_notify_batch__read` → Kcell batch API → `notify.sms_notify_status__set`. "
+        "Пусто → `No batches to check.`",
+        php_action="sms-notify-status",
     ),
 )
 async def sms_notify_status(service: SmsNotifyStatusServiceDep) -> Response:

@@ -1,24 +1,30 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
+from src.openapi_helpers import legacy_integration_path
+
 from ..sberbank_callback.deps import merge_request_params
 from .deps import FortePayServiceDep
 
 router = APIRouter()
 
-
-@router.api_route(
-    "/forte-pay/mode/{mode}",
-    methods=["GET", "POST"],
-    summary="Forte pay (legacy multi-mode)",
-    description=(
-        "Modes: ``register``, ``status`` (cron), ``on_approve/on_cancel/on_decline`` callbacks. "
-        "Write SP ``forte_transaction_set`` / ``forte_client_request_payment_set`` may be absent in DB."
-    ),
+_DESC = (
+    "Modes: `register`, `status` (cron), callbacks. Write SP `forte_*` may be absent in DB.\n"
+    "POST также принимается (скрыт)."
+    + legacy_integration_path("forte-pay/mode/{mode}")
 )
-@router.api_route(
+
+
+@router.get("/forte-pay/mode/{mode}", summary="fortePayAction", description=_DESC)
+@router.post("/forte-pay/mode/{mode}", include_in_schema=False)
+@router.get(
     "/forte-pay/mode/{mode}/request/{request_hash}/payment/{payment_hash}",
-    methods=["GET", "POST"],
+    summary="fortePayAction — path с hash",
+    description=_DESC,
+)
+@router.post(
+    "/forte-pay/mode/{mode}/request/{request_hash}/payment/{payment_hash}",
+    include_in_schema=False,
 )
 async def forte_pay(
     mode: str,

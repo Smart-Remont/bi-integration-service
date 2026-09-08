@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse, Response
 
+from src.openapi_helpers import add_cron_route, cron_description
+
 from ..errors import PaymentsDatabaseError
 from ..sberbank_client import SberbankClientError
 from .deps import SberbankCheckStatusServiceDep
@@ -8,11 +10,14 @@ from .deps import SberbankCheckStatusServiceDep
 router = APIRouter()
 
 
-@router.api_route(
+@add_cron_route(
+    router,
     "/sberbank-check-payment-status",
-    methods=["GET", "POST"],
-    summary="Cron: poll Sber payment statuses",
-    description="Legacy ``sberbankCheckPaymentStatusAction`` → ``sberbank_payment_read_for_status``.",
+    summary="Cron: sberbankCheckPaymentStatusAction",
+    description=cron_description(
+        "`sberbank_payment_read_for_status` → poll Sber API → update status.",
+        php_action="sberbank-check-payment-status",
+    ),
 )
 async def sberbank_check_payment_status(service: SberbankCheckStatusServiceDep) -> Response:
     try:

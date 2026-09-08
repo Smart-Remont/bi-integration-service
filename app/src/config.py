@@ -132,6 +132,62 @@ class PaymentsConfig:
     paybox_status_url: str = os.getenv("PAYBOX_STATUS_URL", "")
 
 
+class SigningConfig:
+    """Aitu / DID signing (legacy IntegrationController signing actions)."""
+
+    public_base_url: str = (
+        os.getenv("SIGNING_PUBLIC_BASE_URL")
+        or os.getenv("OFFICE_PUBLIC_URL")
+        or "https://office.smartremont.kz"
+    ).rstrip("/")
+    myspace_api_url: str = os.getenv(
+        "MYSPACE_API_URL",
+        "https://myspace-api.smartremont.kz",
+    ).rstrip("/")
+    aitu_base_url: str = os.getenv("AITU_BASE_URL", "").rstrip("/")
+    aitu_parse_url: str = os.getenv("AITU_PARSE_URL", "").rstrip("/")
+    aitu_client_id: str = os.getenv("AITU_CLIENT", "")
+    aitu_client_secret: str = os.getenv("AITU_SECRET", "")
+    aitu_redirect_url: str = os.getenv("AITU_REDIRECT_URL", "")
+
+
+class LeadsConfig:
+    albato_meta_token: str = os.getenv("ALBATO_META_TOKEN", "")
+    tilda_export_dir: str = os.getenv("TILDA_EXPORT_DIR", "")
+
+
+class WorkersConfig:
+    bi_api_user: str = os.getenv("BI_API_USER", "hs_smart")
+    bi_api_password: str = os.getenv("BI_API_PASSWORD", "")
+    bi_placements_url: str = os.getenv(
+        "BI_PLACEMENTS_URL",
+        "https://apigw.bi.group/ooo/hs/bigroup/apicenter/placements",
+    )
+    bi_residents_url: str = os.getenv(
+        "BI_RESIDENTS_URL",
+        "https://apigw.bi.group/ooo/hs/Smart/GetObjectsList?KeyTransferDate=20190101000000",
+    )
+    bi_crm_create_finish_url: str = os.getenv(
+        "BI_CRM_CREATE_FINISH_URL",
+        "https://apigw.bi.group/ooo/hs/CRM/create_finish",
+    )
+    planoplan_token: str = os.getenv("PLANOPLAN_TOKEN", "123456")
+    planoplan_api_base: str = os.getenv(
+        "PLANOPLAN_API_BASE",
+        "https://api.planoplan.com/team/v2",
+    ).rstrip("/")
+    partner_api_url: str = os.getenv(
+        "PARTNER_API_URL",
+        "https://bpapi.smartremont.kz/partner",
+    ).rstrip("/")
+    contractor_agreement_pdf_base: str = os.getenv(
+        "CONTRACTOR_AGREEMENT_PDF_BASE",
+        "https://bpapi.smartremont.kz/partner/contractor_agreement_list/signed",
+    ).rstrip("/")
+    freedom_legacy_base_url: str = os.getenv("FF_BASE_URL", "https://fastcash-back.trafficwave.kz")
+    freedom_legacy_auth_body: str = os.getenv("FF_AUTH", "")
+
+
 class MinioConfig:
     """MinIO / S3-compatible storage — same keys as smremont `application.ini` → minio.*."""
 
@@ -179,5 +235,8 @@ app_config = AppConfig()
 kcell_config = KcellConfig()
 sberbank_config = SberbankConfig()
 payments_config = PaymentsConfig()
+signing_config = SigningConfig()
+leads_config = LeadsConfig()
+workers_config = WorkersConfig()
 minio_config = MinioConfig()
 file_store_config = FileStoreConfig()

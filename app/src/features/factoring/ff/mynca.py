@@ -106,6 +106,19 @@ class MyncaClient:
     async def sign_download_pdf(self, sign_process_id: str) -> bytes:
         return await self._request_bytes("GET", f"/sign/{sign_process_id}/download")
 
+    async def sign_get_file(self, sign_process_id: str) -> str:
+        """GET /sign/{id}/file — returns base64 file_content (legacy MyNcaClient.signGetFile)."""
+        body = await self._request_json("GET", f"/sign/{sign_process_id}/file")
+        file_b64 = _nested_str(body, "data", "data", "file_content") or _nested_str(
+            body, "data", "file_content"
+        )
+        if not file_b64:
+            raise MyncaClientError("MyNCA sign/file returned no file_content.")
+        return file_b64
+
+    async def sign_group_download_pdf(self, group_id: str) -> bytes:
+        return await self._request_bytes("GET", f"/sign/group/{group_id}/download")
+
     async def pkcs12_info(
         self,
         *,

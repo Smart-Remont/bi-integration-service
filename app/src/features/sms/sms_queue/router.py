@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse, Response
 
+from src.openapi_helpers import add_cron_route, cron_description
+
 from ..errors import SmsDatabaseError
 from ..kcell_client import KcellClientError
 from .deps import SmsQueueServiceDep
@@ -8,13 +10,13 @@ from .deps import SmsQueueServiceDep
 router = APIRouter()
 
 
-@router.api_route(
+@add_cron_route(
+    router,
     "/sms",
-    methods=["GET", "POST"],
-    summary="Отправка SMS из очереди client",
-    description=(
-        "Cron: `client.sms_number_read` → Kcell Hermes `/batches` (по 200 сообщений) "
-        "→ `client.sms_set_result`. Без auth (как legacy `smsAction`). Ответ: `0`."
+    summary="Cron: smsAction — очередь SMS client",
+    description=cron_description(
+        "`client.sms_number_read` → Kcell Hermes `/batches` (до 200) → `client.sms_set_result`.",
+        php_action="sms",
     ),
 )
 async def sms_queue(service: SmsQueueServiceDep) -> Response:

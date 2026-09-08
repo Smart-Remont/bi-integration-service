@@ -96,8 +96,12 @@ HTTP
 
 Примеры feature-модулей:
 
-- `app/src/features/ddu_contractor/` — внутренний API `/api/v1/...`
-- `app/src/features/big_integration/` — BIG Integration `/api/big_integration/...` ([docs/big-integration.md](docs/big-integration.md))
+- `app/src/features/ddu_contractor/` — `/api/v1/...`
+- `app/src/features/big_integration/` — `/api/big_integration/...` ([docs/big-integration.md](docs/big-integration.md))
+- `app/src/features/bi/` — `/api/integration/...` ([docs/bi.md](docs/bi.md))
+- `app/src/features/signing/` — `/api/signing/...` ([docs/signing.md](docs/signing.md))
+
+Полный индекс: [docs/README.md](docs/README.md), cutover с PHP: [docs/integration-cutover.md](docs/integration-cutover.md).
 
 ## Структура проекта
 
@@ -105,6 +109,7 @@ HTTP
 .
 ├── AGENTS.md
 ├── README.md
+├── docs/                  # API-контракты и cutover (см. docs/README.md)
 ├── Dockerfile
 ├── docker-compose.yaml
 ├── pyproject.toml

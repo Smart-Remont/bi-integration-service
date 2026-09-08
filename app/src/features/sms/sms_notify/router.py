@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse, Response
 
+from src.openapi_helpers import add_cron_route, cron_description
+
 from ..errors import SmsDatabaseError
 from ..kcell_client import KcellClientError
 from .deps import SmsNotifyServiceDep
@@ -8,13 +10,14 @@ from .deps import SmsNotifyServiceDep
 router = APIRouter()
 
 
-@router.api_route(
+@add_cron_route(
+    router,
     "/sms-notify",
-    methods=["GET", "POST"],
-    summary="Отправка notify-SMS из очереди",
-    description=(
-        "Cron: `notify.sms_notify__read` → Kcell Hermes → `notify.sms_notify_result__set`. "
-        "Пустая очередь → `No messages to send.`"
+    summary="Cron: smsNotifyAction — notify SMS",
+    description=cron_description(
+        "`notify.sms_notify__read` → Kcell Hermes → `notify.sms_notify_result__set`. "
+        "Пустая очередь → `No messages to send.`",
+        php_action="sms-notify",
     ),
 )
 async def sms_notify(service: SmsNotifyServiceDep) -> Response:

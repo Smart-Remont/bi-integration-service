@@ -14,8 +14,8 @@ class APIDduExportPrefixConfig:
     prefix: str = "/ddu_export"
 
 
-class APILegacyBiPrefixConfig:
-    prefix: str = "/legacy_bi"
+class APIBiPrefixConfig:
+    prefix: str = "/integration"
 
 
 class APISmsPrefixConfig:
@@ -26,14 +26,29 @@ class APIPaymentsPrefixConfig:
     prefix: str = "/payments"
 
 
+class APISigningPrefixConfig:
+    prefix: str = "/signing"
+
+
+class APILeadsPrefixConfig:
+    prefix: str = "/leads"
+
+
+class APIWorkersPrefixConfig:
+    prefix: str = "/workers"
+
+
 class APIPrefixConfig:
     prefix: str = "/api"
     v1: APIV1PrefixConfig = APIV1PrefixConfig()
     big_integration: APIBigIntegrationPrefixConfig = APIBigIntegrationPrefixConfig()
     ddu_export: APIDduExportPrefixConfig = APIDduExportPrefixConfig()
-    legacy_bi: APILegacyBiPrefixConfig = APILegacyBiPrefixConfig()
+    bi: APIBiPrefixConfig = APIBiPrefixConfig()
     sms: APISmsPrefixConfig = APISmsPrefixConfig()
     payments: APIPaymentsPrefixConfig = APIPaymentsPrefixConfig()
+    signing: APISigningPrefixConfig = APISigningPrefixConfig()
+    leads: APILeadsPrefixConfig = APILeadsPrefixConfig()
+    workers: APIWorkersPrefixConfig = APIWorkersPrefixConfig()
 
 
 api_prefix_config = APIPrefixConfig()

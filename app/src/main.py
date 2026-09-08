@@ -41,19 +41,18 @@ OPENAPI_TAGS = [
         ),
     },
     {
-        "name": "Legacy BI/CRM",
+        "name": "IntegrationController (hs_bi)",
         "description": (
-            "Legacy `IntegrationController` (BI-группа): рендер/наличие, отчёты, лиды из "
-            "BI-приложения/CRM. Basic Auth — тот же `hs_bi`, что у BIG Integration. "
-            "Формат ответа отличается: `error.code`, при ошибке HTTP 400 и `data` содержит "
-            "код ошибки `P0xx`. Часть legacy-действий не перенесена — их SP больше нет в БД, "
-            "см. `docs/legacy-bi.md`."
+            "PHP ``IntegrationController`` (hs_bi): ``sr-render``, ``remont-avail``, ``bigapp-form``. "
+            "Basic Auth ``INTEGRATION_HS_BI_*``. Конверт ``response_json()`` — HTTP 400, ``P0xx``. "
+            "URL: ``/api/integration/{action}``. См. docs/bi.md."
         ),
     },
     {
         "name": "Payments",
         "description": (
             "Sber / Forte / Paybox — redirect flows, bank callbacks, status cron. "
+            "Cron `sberbank-check-payment-status` — **GET в OpenAPI**, POST скрыт. "
             "Credentials: ``SBERBANK_*``, ``FORTE_*`` / DB settings, ``PAYBOX_*``. "
             "Без HTTP auth (как legacy payment actions)."
         ),
@@ -61,9 +60,30 @@ OPENAPI_TAGS = [
     {
         "name": "SMS / Kcell",
         "description": (
-            "Cron/webhook SMS и звонков Kcell: очереди `client`/`notify`, poll batch status, "
-            "webhook call-processing. Credentials: `KCELL_HERMES_*`, `KCELL_BATCH_*`. "
-            "Без HTTP auth (как legacy cron actions)."
+            "Cron/webhook Kcell. **Cron-роуты в OpenAPI — только GET**; POST работает, но скрыт "
+            "(как legacy PHP). Env: `KCELL_HERMES_*`, `KCELL_BATCH_*`. Без HTTP auth."
+        ),
+    },
+    {
+        "name": "Signing (Aitu / DID / MyNCA)",
+        "description": (
+            "Legacy `IntegrationController` signing: Aitu OAuth, cron poll подписей, PDF download. "
+            "**Cron в OpenAPI — GET**; POST скрыт, handler тот же. PHP: `/integration/{action}`. "
+            "Без auth. Env: `AITU_*`, `MYNCA_*`, `SIGNING_PUBLIC_BASE_URL`."
+        ),
+    },
+    {
+        "name": "Leads / Tilda / Forms",
+        "description": (
+            "Webhook-формы Tilda/Facebook/Albato Meta, экспорт Tilda на диск, cron обработки "
+            "webhook-очереди. Env: ``ALBATO_META_TOKEN``, ``TILDA_EXPORT_DIR``. Без HTTP auth."
+        ),
+    },
+    {
+        "name": "Workers / Cron / BI sync",
+        "description": (
+            "Planoplan, BI sync, DDU cancel, Freedom. **Cron — GET в OpenAPI**, POST скрыт. "
+            "PHP: `/integration/{action}`. Без auth."
         ),
     },
     {
@@ -92,23 +112,19 @@ app = FastAPI(
     title="Smart Remont — Integrations",
     summary="Тонкий HTTP-слой над PostgreSQL stored functions для внешних банковских интеграций",
     description=(
-        "## Два типа API\n\n"
-        "| Тип | Префикс | Auth | Формат ответа |\n"
-        "|---|---|---|---|\n"
-        "| Внутренний REST | `/api/v1/...` | Basic Auth | Pydantic-схемы, стандартные HTTP-коды |\n"
-        "| BIG Integration | `/api/big_integration/...` | Basic Auth | envelope `{data, response, error}` |\n\n"
-        "Вся бизнес-логика и валидация — в PostgreSQL stored functions (`asyncpg`, без ORM); "
-        "этот сервис — тонкий транспортный слой поверх них.\n\n"
-        "### Провайдеры\n\n"
-        "- **Freedom Finance** — онлайн-рассрочка (`installment`) и факторинг (`factoring`), "
-        "обе заявки хранятся в одной таблице `installment_application_tab` (`product_type`).\n"
-        "- **MyNCA** — электронная подпись документов для факторинга.\n"
-        "- **BIG Integration** — API ДДУ (`/api/big_integration/...`, см. `docs/big-integration.md`).\n"
-        "- **DDU Export** — справочники ДДУ (`/api/ddu_export/...`), отдельный Basic Auth.\n"
-        "- **Legacy BI/CRM** — `/api/legacy_bi/...`, см. `docs/legacy-bi.md`.\n"
-        "- **SMS / Kcell** — cron `/api/sms/...` (Hermes + batch poll + call webhook).\n"
-        "- **Payments** — Sber/Forte/Paybox `/api/payments/...`.\n"
-        "- **File Storage** — прямой MinIO для `/documents/...` (`MINIO_*`, `STORAGE_PUBLIC_URL`).\n"
+        "## Cutover с PHP `IntegrationController`\n\n"
+        "Legacy URL: `/integration/{action}` → этот сервис: `/api/{module}/{action}`.\n\n"
+        "| Модуль | Префикс | Auth |\n"
+        "|---|---|---|\n"
+        "| BIG Integration | `/api/big_integration/` | Basic `hs_bi` |\n"
+        "| IntegrationController (hs_bi) | `/api/integration/` | Basic `hs_bi` |\n"
+        "| DDU Export | `/api/ddu_export/` | Basic `ddu_export` |\n"
+        "| Signing / SMS / Workers / Leads | `/api/signing/` … | нет |\n\n"
+        "### Cron и GET+POST\n\n"
+        "У cron-роутов (SMS, signing, workers) **в Swagger/Scalar один метод — GET**. "
+        "**POST принимается** тем же кодом, но **скрыт из схемы**, чтобы не дублировать операции. "
+        "В PHP метод не проверялся — для crontab достаточно `curl` GET.\n\n"
+        "Документация: `/scalar`, `/docs`, `docs/README.md`.\n"
     ),
     version="0.1.0",
     lifespan=lifespan,
