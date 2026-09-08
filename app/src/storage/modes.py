@@ -53,6 +53,7 @@ class FileStoreMode(StrEnum):
     CMS_CONTACT_INFO_ICON = "CMS_CONTACT_INFO_ICON"
     CMS_ABOUT_IMG = "CMS_ABOUT_IMG"
     CMS_PARTNER_IMG = "CMS_PARTNER_IMG"
+    CMS_REMONT_DETAILS_PHOTO = "CMS_REMONT_DETAILS_PHOTO"
     CMS_CONSTRUCTOR_REMONT_PHOTO = "CMS_CONSTRUCTOR_REMONT_PHOTO"
     CMS_REVIEW_AVATAR = "CMS_REVIEW_AVATAR"
     CMS_TEAM_PHOTO = "CMS_TEAM_PHOTO"
@@ -65,6 +66,8 @@ class FileStoreMode(StrEnum):
     CMS_PRESET_KIT_INFO_PRESENTATION = "CMS_PRESET_KIT_INFO_PRESENTATION"
     CMS_PRESET_KIT_INFO_IMG = "CMS_PRESET_KIT_INFO_IMG"
     CMS_PRESET_KIT_INFO_IMG_MINI = "CMS_PRESET_KIT_INFO_IMG_MINI"
+    CMS_SHOW_ROOM_PHOTO = "CMS_SHOW_ROOM_PHOTO"
+    CMS_SHOW_ROOM_PHOTO_MINI = "CMS_SHOW_ROOM_PHOTO_MINI"
 
 
 FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
@@ -110,6 +113,7 @@ FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
     FileStoreMode.CMS_CONTACT_INFO_ICON: "Иконка контактной информации footer (CMS)",
     FileStoreMode.CMS_ABOUT_IMG: "Картинка блока «О компании» (CMS)",
     FileStoreMode.CMS_PARTNER_IMG: "Картинка блока «Партнёры» (CMS)",
+    FileStoreMode.CMS_REMONT_DETAILS_PHOTO: "Фото галереи «Деталей ремонта» (CMS)",
     FileStoreMode.CMS_CONSTRUCTOR_REMONT_PHOTO: "Фото блока «Конструктор ремонта» (CMS)",
     FileStoreMode.CMS_REVIEW_AVATAR: "Аватар отзыва (CMS)",
     FileStoreMode.CMS_TEAM_PHOTO: "Фото сотрудника команды (CMS)",
@@ -122,6 +126,8 @@ FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
     FileStoreMode.CMS_PRESET_KIT_INFO_PRESENTATION: "Презентация набора пресета (CMS)",
     FileStoreMode.CMS_PRESET_KIT_INFO_IMG: "Фото набора пресета (оригинал, CMS)",
     FileStoreMode.CMS_PRESET_KIT_INFO_IMG_MINI: "Фото набора пресета (мини, CMS)",
+    FileStoreMode.CMS_SHOW_ROOM_PHOTO: "Фото шоурума (оригинал, CMS)",
+    FileStoreMode.CMS_SHOW_ROOM_PHOTO_MINI: "Фото шоурума (мини, CMS)",
 }
 
 # Same folders/prefixes as KanbanController::srfileUploadAction.
@@ -169,6 +175,7 @@ MODE_PATH_TEMPLATES: dict[FileStoreMode, str] = {
     FileStoreMode.CMS_CONTACT_INFO_ICON: "/documents/{date}/cms_contact_info/icon_{uniq}.{ext}",
     FileStoreMode.CMS_ABOUT_IMG: "/documents/{date}/cms_about/img_{uniq}.{ext}",
     FileStoreMode.CMS_PARTNER_IMG: "/documents/{date}/cms_partner/img_{uniq}.{ext}",
+    FileStoreMode.CMS_REMONT_DETAILS_PHOTO: "/documents/{date}/cms_remont_details/photo_{uniq}.{ext}",
     FileStoreMode.CMS_CONSTRUCTOR_REMONT_PHOTO: "/documents/{date}/cms_constructor_remont/photo_{uniq}.{ext}",
     FileStoreMode.CMS_REVIEW_AVATAR: "/documents/{date}/cms_reviews/avatar_{uniq}.{ext}",
     FileStoreMode.CMS_TEAM_PHOTO: "/documents/{date}/cms_team/photo_{uniq}.{ext}",
@@ -181,6 +188,8 @@ MODE_PATH_TEMPLATES: dict[FileStoreMode, str] = {
     FileStoreMode.CMS_PRESET_KIT_INFO_PRESENTATION: "/documents/{date}/cms_preset_kit_info/presentation_{uniq}.{ext}",
     FileStoreMode.CMS_PRESET_KIT_INFO_IMG: "/documents/{date}/cms_preset_kit_info/img_{uniq}.{ext}",
     FileStoreMode.CMS_PRESET_KIT_INFO_IMG_MINI: "/documents/{date}/cms_preset_kit_info/mini/img_mini_{uniq}.{ext}",
+    FileStoreMode.CMS_SHOW_ROOM_PHOTO: "/documents/{date}/cms_show_room/photo_{uniq}.{ext}",
+    FileStoreMode.CMS_SHOW_ROOM_PHOTO_MINI: "/documents/{date}/cms_show_room/mini/photo_mini_{uniq}.{ext}",
 }
 
 
