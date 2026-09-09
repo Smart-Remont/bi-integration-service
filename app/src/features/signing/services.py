@@ -8,6 +8,7 @@ from .services_aitu import AituFlowService, AituRedirectService, SigningCronServ
 from .services_auto_sign_operator import AutoSignOperatorService
 from .services_did_sign import DidSignService
 from .services_download import SigningDownloadService, ThirdPartySignService
+from .services_mynca_callbacks import MyncaCallbackService
 from .services_sign_document import SignDocumentService
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "AituRedirectService",
     "AutoSignOperatorService",
     "DidSignService",
+    "MyncaCallbackService",
     "SignDocumentService",
     "SigningCronService",
     "SigningDownloadService",

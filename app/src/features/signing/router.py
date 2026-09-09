@@ -4,7 +4,7 @@ import json
 from collections.abc import Awaitable
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.responses import StreamingResponse
 
 from src.http_response_utils import get_error_message, plain_from
@@ -15,11 +15,20 @@ from .deps import (
     AituRedirectServiceDep,
     AutoSignOperatorServiceDep,
     DidSignServiceDep,
+    MyncaCallbackServiceDep,
     SigningCronServiceDep,
     SigningDownloadServiceDep,
     ThirdPartySignServiceDep,
 )
 from .errors import SigningDatabaseError
+from .openapi_examples import (
+    CABINET_ACT_BODY,
+    CLIENT_SIGN_BODY,
+    MYNCA_CALLBACK_RESPONSES,
+    PROJECT_REMONT_BODY,
+    THIRD_PARTY_FORM_BODY,
+    THIRD_PARTY_RESPONSES,
+)
 
 router = APIRouter(tags=["Signing (Aitu / DID / MyNCA)"])
 
@@ -293,15 +302,127 @@ async def download_agreement(
     )
 
 
+async def _read_json_object(request: Request) -> dict[str, object] | JSONResponse:
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        return JSONResponse({"status": False, "error": "Невалидный JSON в callback"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"status": False, "error": "Невалидный JSON в callback"}, status_code=400)
+    return body
+
+
+async def _mynca_callback(handler: Awaitable[dict[str, object]]) -> JSONResponse:
+    try:
+        payload = await handler
+        return JSONResponse(payload)
+    except SigningDatabaseError as exc:
+        return JSONResponse({"status": False, "error": get_error_message(exc)}, status_code=500)
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"status": False, "error": get_error_message(exc)}, status_code=500)
+
+
+@router.post(
+    "/callbacks/client-sign",
+    summary="MyNCA back_url — клиентская подпись ДС / договора / ОТБАСЫ",
+    description=(
+        "Вызывает **MyNCA**, не UI. **Auth:** нет.\n\n"
+        "`status=SUCCESS` + `meta_data.type_code` (`CLIENT_SIGN` / `CLIENT_DS_SIGN` / "
+        "`OTBASY_STATEMENT_SIGN`) → `client.insert_sign_general` + `client.sign_tab__modify`.\n"
+        "Другой `status` — HTTP 200 `{\"status\": true}` без записи (как PHP).\n\n"
+        "**Legacy:** `POST /client-sign/callback` (`ClientSignController::callbackAction`). "
+        "Nginx: проксировать этот path сюда, пока PHP `sign/create` шлёт office `back_url`."
+    ),
+    openapi_extra=CLIENT_SIGN_BODY,
+    responses=MYNCA_CALLBACK_RESPONSES,
+)
+async def mynca_callback_client_sign(
+    request: Request,
+    service: MyncaCallbackServiceDep,
+) -> JSONResponse:
+    body = await _read_json_object(request)
+    if isinstance(body, JSONResponse):
+        return body
+    return await _mynca_callback(service.client_sign(body))
+
+
+@router.post(
+    "/callbacks/project-remont",
+    summary="MyNCA back_url — проект ремонта (cabinet)",
+    description=(
+        "Вызывает **MyNCA**. **Auth:** нет. `ext_id` = `project_remont_id`.\n\n"
+        "`SUCCESS` + `is_signed` → `landing.cabinet_project_sign__set`. "
+        "Ошибка SP → `landing.cabinet_project_error_sign__clear`.\n\n"
+        "**Legacy:** `POST /react/cabinet/project-remont-sign-back/`."
+    ),
+    openapi_extra=PROJECT_REMONT_BODY,
+    responses=MYNCA_CALLBACK_RESPONSES,
+)
+async def mynca_callback_project_remont(
+    request: Request,
+    service: MyncaCallbackServiceDep,
+) -> JSONResponse:
+    body = await _read_json_object(request)
+    if isinstance(body, JSONResponse):
+        return body
+    return await _mynca_callback(service.project_remont(body))
+
+
+@router.post(
+    "/callbacks/app",
+    summary="MyNCA back_url — акт приёма-передачи",
+    description=(
+        "Вызывает **MyNCA**. **Auth:** нет. `ext_id` = `remont_id`, обязателен `group_id`.\n\n"
+        "ИИН (`landing.check_iin_sign_client`) → документ `APART_PASS_ACT_CL` "
+        "(`client_request_upd_doc` + `cabinet_document_sign_id__set`). "
+        "`document_url` = публичная страница MyNCA (`MYNCA_SIGN_PAGE_URL`).\n\n"
+        "**Legacy:** `POST /react/cabinet/app-sign-back/`."
+    ),
+    openapi_extra=CABINET_ACT_BODY,
+    responses=MYNCA_CALLBACK_RESPONSES,
+)
+async def mynca_callback_app(
+    request: Request,
+    service: MyncaCallbackServiceDep,
+) -> JSONResponse:
+    body = await _read_json_object(request)
+    if isinstance(body, JSONResponse):
+        return body
+    return await _mynca_callback(service.app(body))
+
+
+@router.post(
+    "/callbacks/defect",
+    summary="MyNCA back_url — дефектный акт",
+    description=(
+        "Как `/callbacks/app`, тип документа `CLIENT_DEFECT_ACT`.\n\n"
+        "**Legacy:** `POST /react/cabinet/defect-sign-back/`."
+    ),
+    openapi_extra=CABINET_ACT_BODY,
+    responses=MYNCA_CALLBACK_RESPONSES,
+)
+async def mynca_callback_defect(
+    request: Request,
+    service: MyncaCallbackServiceDep,
+) -> JSONResponse:
+    body = await _read_json_object(request)
+    if isinstance(body, JSONResponse):
+        return body
+    return await _mynca_callback(service.defect(body))
+
+
 @router.post(
     "/third-party-app-sign-back",
-    summary="thirdPartyAppSignBackAction — callback подписи 3-го лица",
+    summary="Callback подписи заявления на 3-е лицо",
     description=(
-        "Form/query: `id`, `dn_name`, `signed_xml`, `sign_process_id` → "
-        "`check_iin_sign_third_party_app` → MinIO → `client_request_upd_doc`.\n"
-        "GET также принимается (скрыт из OpenAPI)."
+        "**Auth:** нет. Вызывает **sign.smartremont.kz** (не MyNCA JSON): form/query "
+        "`id`, `dn_name`, `signed_xml`, `sign_process_id`.\n\n"
+        "`check_iin_sign_third_party_app` → PDF из XML → MinIO → `client_request_upd_doc`.\n"
+        "Ответ — JSON в `text/plain` (как PHP `echo json_encode`). GET скрыт из схемы."
         + legacy_integration_path("third-party-app-sign-back")
     ),
+    openapi_extra=THIRD_PARTY_FORM_BODY,
+    responses=THIRD_PARTY_RESPONSES,
 )
 @router.get("/third-party-app-sign-back", include_in_schema=False)
 async def third_party_app_sign_back(

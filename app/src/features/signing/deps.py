@@ -11,6 +11,7 @@ from .services import (
     AituRedirectService,
     AutoSignOperatorService,
     DidSignService,
+    MyncaCallbackService,
     SigningCronService,
     SigningDownloadService,
     ThirdPartySignService,
@@ -82,6 +83,10 @@ def get_third_party_sign_service(connection: DatabaseConnectionDep) -> ThirdPart
     return ThirdPartySignService(SigningRepository(connection=connection))
 
 
+def get_mynca_callback_service(connection: DatabaseConnectionDep) -> MyncaCallbackService:
+    return MyncaCallbackService(SigningRepository(connection=connection))
+
+
 def get_did_sign_service(connection: DatabaseConnectionDep) -> DidSignService:
     return DidSignService(SigningRepository(connection=connection))
 
@@ -99,4 +104,5 @@ AituFlowServiceDep = Annotated[AituFlowService, Depends(get_aitu_flow_service)]
 AituRedirectServiceDep = Annotated[AituRedirectService, Depends(get_aitu_redirect_service)]
 SigningDownloadServiceDep = Annotated[SigningDownloadService, Depends(get_signing_download_service)]
 ThirdPartySignServiceDep = Annotated[ThirdPartySignService, Depends(get_third_party_sign_service)]
+MyncaCallbackServiceDep = Annotated[MyncaCallbackService, Depends(get_mynca_callback_service)]
 DidSignServiceDep = Annotated[DidSignService, Depends(get_did_sign_service)]

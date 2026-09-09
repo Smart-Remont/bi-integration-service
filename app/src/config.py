@@ -88,6 +88,8 @@ class MyncaConfig:
     # myspace's NCA_MASTER_KEY env var. Which key to use is resolved from
     # client_request_tab.company_id → nca.company_key_store__read_by_company.
     nca_master_key: str = os.getenv("NCA_MASTER_KEY", "")
+    # Public sign page (cabinet stores this as document_url after callback).
+    sign_page_url: str = os.getenv("MYNCA_SIGN_PAGE_URL", "https://nca.smartremont.kz/sign/")
 
 
 class AppConfig:

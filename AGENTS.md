@@ -220,6 +220,10 @@ Cron + redirect flows. Без HTTP auth. `/api/signing/...`
 | `aitu-sign-detail` | `aituSignDetailAction` | `did_read_for_detail` → AITU_PARSE_URL → `did_detail_insert` |
 | `cron-auto-upload-sign-doc` | `cronAutoUploadSignDocAction` | `sign_read_for_doc` → MyNCA group PDF → MinIO → `sale.sign_document_upd` |
 | `cron-auto-sign-operator` | `cronAutoSignOperatorAction` | company EDS → MyNCA CMS → `insert_sign_general` |
+| `callbacks/client-sign` | `ClientSignController::callbackAction` | MyNCA back_url ДС/договор |
+| `callbacks/project-remont` | cabinet `projectRemontSignBack` | MyNCA back_url проект ремонта |
+| `callbacks/app` | cabinet `appSignBack` | MyNCA back_url акт |
+| `callbacks/defect` | cabinet `defectSignBack` | MyNCA back_url дефект |
 | `did-sign` | `didSignAction` | `did_url_get` → 302 |
 | `perform-ds-did-sign` | `performDsDidSignAction` | office/myspace PDF → `did_insert` → Aitu redirect |
 | `perform-agreement-did-sign` | `performAgreementDidSignAction` | office PDF → `did_insert` → Aitu redirect |

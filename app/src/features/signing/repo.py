@@ -268,6 +268,69 @@ class SigningRepository(BaseRepository):
             return None
         return int(value)
 
+    async def get_client_request_id_by_remont(self, remont_id: int) -> int | None:
+        try:
+            rows = await self.call_sp(
+                "utils.get_client_request_id_by_remont",
+                remont_id,
+                module_code=UTILS_MODULE_CODE,
+            )
+        except Exception as exc:
+            raise to_signing_database_error(exc) from exc
+        value = scalar_from_sp_rows(rows)
+        if value is None:
+            return None
+        return int(value)
+
+    async def check_iin_sign_client(self, remont_id: int, dn_name: str) -> int | None:
+        try:
+            rows = await self.call_sp(
+                "landing.check_iin_sign_client",
+                remont_id,
+                dn_name,
+                module_code=LANDING_MODULE_CODE,
+            )
+        except Exception as exc:
+            raise to_signing_database_error(exc) from exc
+        value = scalar_from_sp_rows(rows)
+        if value is None:
+            return None
+        return int(value)
+
+    async def cabinet_project_sign__set(
+        self,
+        *,
+        project_remont_id: int,
+        sign_process_id: str,
+        dn_name: str,
+    ) -> None:
+        try:
+            await self.call_sp(
+                "landing.cabinet_project_sign__set",
+                project_remont_id,
+                sign_process_id,
+                dn_name,
+                module_code=LANDING_MODULE_CODE,
+            )
+        except Exception as exc:
+            raise to_signing_database_error(exc) from exc
+
+    async def cabinet_project_error_sign__clear(
+        self,
+        *,
+        project_remont_id: int,
+        sign_process_id: str,
+    ) -> None:
+        try:
+            await self.call_sp(
+                "landing.cabinet_project_error_sign__clear",
+                project_remont_id,
+                sign_process_id,
+                module_code=LANDING_MODULE_CODE,
+            )
+        except Exception as exc:
+            raise to_signing_database_error(exc) from exc
+
     async def get_document_type_id_by_code(self, type_code: str) -> int | None:
         try:
             rows = await self.call_sp(
@@ -323,6 +386,8 @@ class SigningRepository(BaseRepository):
         document_type_id: int,
         document_name: str,
         document_url: str,
+        client_receive_date: object | None = None,
+        implementation_date: object | None = None,
     ) -> int | None:
         try:
             rows = await self.call_sp(
@@ -336,8 +401,8 @@ class SigningRepository(BaseRepository):
                 0,
                 0,
                 None,
-                None,
-                None,
+                client_receive_date,
+                implementation_date,
                 None,
                 None,
                 None,

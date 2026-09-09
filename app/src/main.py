@@ -68,9 +68,10 @@ OPENAPI_TAGS = [
     {
         "name": "Signing (Aitu / DID / MyNCA)",
         "description": (
-            "Legacy `IntegrationController` signing: Aitu OAuth, cron poll подписей, PDF download. "
-            "**Cron в OpenAPI — GET**; POST скрыт, handler тот же. PHP: `/integration/{action}`. "
-            "Без auth. Env: `AITU_*`, `MYNCA_*`, `SIGNING_PUBLIC_BASE_URL`."
+            "MyNCA **back_url** callbacks (`/api/signing/callbacks/*`) — JSON, без auth; "
+            "legacy PHP: `/client-sign/callback`, `/react/cabinet/*-sign-back/`.\n"
+            "Также Aitu OAuth/cron и PDF download (`/integration/{action}`). "
+            "**Cron в OpenAPI — GET**; POST скрыт. Env: `AITU_*`, `MYNCA_*`, `MYNCA_SIGN_PAGE_URL`."
         ),
     },
     {
