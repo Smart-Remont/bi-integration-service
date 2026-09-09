@@ -38,6 +38,22 @@ class FactoringAuthConfig:
     )
 
 
+class IntegrationContextConfig:
+    """Signed proxy context (CRM → integrations-sr). See docs/integration-context.md."""
+
+    secret: str = os.getenv("INTEGRATION_CONTEXT_SECRET", "")
+    audience: str = os.getenv("INTEGRATION_CONTEXT_AUDIENCE", "integrations-sr")
+    issuer_allowlist: tuple[str, ...] = tuple(
+        item.strip()
+        for item in os.getenv("INTEGRATION_CONTEXT_ISSUERS", "sr-crm").split(",")
+        if item.strip()
+    )
+
+    @property
+    def is_enforced(self) -> bool:
+        return bool(self.secret.strip())
+
+
 class StorageAuthConfig:
     """Basic auth for /api/v1/storage/*. Falls back to installment creds if unset."""
 
@@ -241,6 +257,7 @@ cors_config = CORSConfig()
 big_integration_auth_config = BigIntegrationAuthConfig()
 ddu_export_auth_config = DduExportAuthConfig()
 installment_auth_config = InstallmentAuthConfig()
+integration_context_config = IntegrationContextConfig()
 factoring_auth_config = FactoringAuthConfig()
 storage_auth_config = StorageAuthConfig()
 factoring_prescoring_config = FactoringPrescoringConfig()
