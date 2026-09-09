@@ -124,8 +124,10 @@ REQUEST_CREATE_V3_RESPONSE = standard_post_responses(
 REQUEST_EVENT_V3_BODY = json_request_body(
     {
         "client_request_id": _EX_CLIENT_REQUEST_ID,
-        "event_code": "CLIENT_INFO",
-        "status": "CLIENT_INFO",
+        "placementUUID": _EX_PLACEMENT,
+        "order_id": "343835",
+        "status": "DEAL_CREATED",
+        "request_type": "FULL_REMONT",
     },
 )
 

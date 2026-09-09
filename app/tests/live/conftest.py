@@ -1,10 +1,19 @@
-"""Pytest hooks for live parity tests."""
+"""Pytest hooks and fixtures for live parity tests."""
 
 from __future__ import annotations
+
+import os
 
 import pytest
 
 from .parity_reporter import parity_log_dir
+
+
+@pytest.fixture
+def parity_mutating_enabled() -> None:
+    """Opt-in gate for tests that mutate devprod data."""
+    if os.getenv("PARITY_MUTATING", "").strip() != "1":
+        pytest.skip("Set PARITY_MUTATING=1 to run mutating parity tests")
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:

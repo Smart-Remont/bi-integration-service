@@ -308,7 +308,28 @@ def _finalize_parity(
         )
 
 
-async def assert_post_parity(
+def assert_big_integration_success(
+    body: Any,
+    *,
+    side: str,
+    case_id: str,
+    expected_status: int = 200,
+    http_status: int,
+) -> None:
+    """BIG Integration envelope must be HTTP 200 with response=true."""
+    if http_status != expected_status:
+        pytest.fail(
+            f"[{case_id}] Expected HTTP {expected_status} from {side}, got {http_status}: {body!r}"
+        )
+    if not isinstance(body, dict):
+        pytest.fail(f"[{case_id}] Expected JSON object from {side}, got {type(body).__name__}")
+    if body.get("response") is not True:
+        err = body.get("error")
+        message = err.get("message") if isinstance(err, dict) else err
+        pytest.fail(f"[{case_id}] Expected success envelope from {side}, got error: {message!r}")
+
+
+async def run_post_parity(
     *,
     case: PostParityCase,
     body: PostBody,
@@ -317,7 +338,9 @@ async def assert_post_parity(
     hs_bi_auth: dict[str, str],
     ddu_export_auth: dict[str, str],
     client: httpx.AsyncClient,
-) -> None:
+    expect_http_status: int | None = None,
+) -> tuple[ParityHttpExchange, ParityHttpExchange]:
+    """POST to PHP and FastAPI; assert parity; return both exchanges."""
     auth = hs_bi_auth if case.auth == "hs_bi" else ddu_export_auth
     php_url = f"{office_base_url}/integration/{case.php_action}"
     py_url = f"{integrations_base_url}{case.py_path}"
@@ -344,6 +367,63 @@ async def assert_post_parity(
         py=py,
         require_non_empty=case.require_non_empty,
     )
+    if expect_http_status is not None:
+        assert_big_integration_success(
+            php.parsed,
+            side="OFFICE",
+            case_id=case.id,
+            expected_status=expect_http_status,
+            http_status=php.status,
+        )
+        assert_big_integration_success(
+            py.parsed,
+            side="FASTAPI",
+            case_id=case.id,
+            expected_status=expect_http_status,
+            http_status=py.status,
+        )
+    return php, py
+
+
+async def assert_post_parity(
+    *,
+    case: PostParityCase,
+    body: PostBody,
+    office_base_url: str,
+    integrations_base_url: str,
+    hs_bi_auth: dict[str, str],
+    ddu_export_auth: dict[str, str],
+    client: httpx.AsyncClient,
+) -> None:
+    await run_post_parity(
+        case=case,
+        body=body,
+        office_base_url=office_base_url,
+        integrations_base_url=integrations_base_url,
+        hs_bi_auth=hs_bi_auth,
+        ddu_export_auth=ddu_export_auth,
+        client=client,
+    )
+
+
+def extract_big_integration_client_request_id(
+    body: Any,
+    *,
+    side: str,
+    case_id: str,
+) -> int:
+    """Read ``data.client_request_id`` from a BIG Integration success envelope."""
+    if not isinstance(body, dict):
+        pytest.fail(f"[{case_id}] Expected JSON object from {side}, got {type(body).__name__}")
+    data = body.get("data")
+    if not isinstance(data, dict):
+        pytest.fail(f"[{case_id}] Expected data object in {side} response, got {data!r}")
+    client_request_id = data.get("client_request_id")
+    if not isinstance(client_request_id, int) or client_request_id <= 0:
+        pytest.fail(
+            f"[{case_id}] Expected positive client_request_id in {side} response, got {client_request_id!r}"
+        )
+    return client_request_id
 
 
 async def assert_get_parity(

@@ -33,6 +33,7 @@ pythonpath = ["app"]
 markers = [
     "live: smoke against devprod office (needs credentials in app/.env)",
     "parity: PHP vs integrations-sr must return identical HTTP status + JSON body",
+    "mutating: live parity that writes to DB (requires PARITY_MUTATING=1)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
