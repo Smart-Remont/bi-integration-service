@@ -12,6 +12,27 @@ from .repo import KaspiRepository
 from .xml import check_success_xml, error_xml, info_fields, pay_success_xml
 
 
+def _kaspi_int(value: object, default: int = 0) -> int:
+    """Query params from HTTP are strings; SP expects integer ids/amounts."""
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    text = str(value).strip()
+    if not text:
+        return default
+    if text.isdigit():
+        return int(text)
+    try:
+        return int(float(text))
+    except ValueError:
+        return default
+
+
 class KaspiService(BaseService):
     def __init__(self, repository: KaspiRepository) -> None:
         self.repository = repository
@@ -51,8 +72,8 @@ class KaspiService(BaseService):
     async def _request_check(self, params: dict[str, Any]) -> tuple[str, int]:
         txn_id = str(params.get("txn_id") or "")
         iin = str(params.get("iin") or "")
-        account = params.get("account", 0)
-        sum_value = params.get("sum", 0)
+        account = _kaspi_int(params.get("account", 0))
+        sum_value = _kaspi_int(params.get("sum", 0))
         params_json = KaspiRepository.params_json(params)
 
         try:
@@ -94,8 +115,8 @@ class KaspiService(BaseService):
         txn_id = str(params.get("txn_id") or "")
         txn_date = str(params.get("txn_date") or "") or None
         iin = str(params.get("iin") or "")
-        account = params.get("account", 0)
-        sum_value = params.get("sum", 0)
+        account = _kaspi_int(params.get("account", 0))
+        sum_value = _kaspi_int(params.get("sum", 0))
         params_json = KaspiRepository.params_json(params)
 
         try:
@@ -151,8 +172,8 @@ class KaspiService(BaseService):
     async def _payment_check(self, params: dict[str, Any]) -> tuple[str, int]:
         txn_id = str(params.get("txn_id") or "")
         iin = str(params.get("iin") or "")
-        account = params.get("account", 0)
-        sum_value = params.get("sum", 0)
+        account = _kaspi_int(params.get("account", 0))
+        sum_value = _kaspi_int(params.get("sum", 0))
         params_json = KaspiRepository.params_json(params)
 
         try:
@@ -186,7 +207,7 @@ class KaspiService(BaseService):
             result_code=check_code,
             company_bin=str(info.get("company_bin") or ""),
             fields=info_fields(info),
-            payment_amount=str(info.get("payment_amount") or ""),
+            payment_amount=info.get("payment_amount"),
         )
         await self._log("check", params_json, xml, account, txn_id, sum_value, None, 2, 1)
         return xml, 200
@@ -195,8 +216,8 @@ class KaspiService(BaseService):
         txn_id = str(params.get("txn_id") or "")
         txn_date = str(params.get("txn_date") or "") or None
         iin = str(params.get("iin") or "")
-        account = params.get("account", 0)
-        sum_value = params.get("sum", 0)
+        account = _kaspi_int(params.get("account", 0))
+        sum_value = _kaspi_int(params.get("sum", 0))
         params_json = KaspiRepository.params_json(params)
 
         try:

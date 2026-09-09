@@ -18,7 +18,7 @@ class CloudPaymentsRepository(BaseRepository):
         amount: int,
         cp_response: str,
         cp_transaction_id: str,
-    ) -> int:
+    ) -> int | None:
         try:
             rows = await self.call_sp(
                 "client.cloud_payments_pay",
@@ -33,7 +33,9 @@ class CloudPaymentsRepository(BaseRepository):
         except Exception as exc:
             raise to_payments_database_error(exc) from exc
         value = scalar_from_sp_rows(rows)
-        return int(value) if value is not None else 0
+        if value is None:
+            return None
+        return int(value)
 
     async def payment_client_request_get(
         self,

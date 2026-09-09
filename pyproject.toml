@@ -34,6 +34,7 @@ markers = [
     "live: smoke against devprod office (needs credentials in app/.env)",
     "parity: PHP vs integrations-sr must return identical HTTP status + JSON body",
     "mutating: live parity that writes to DB (requires PARITY_MUTATING=1)",
+    "payments_parity: PHP vs integrations-sr for Payments (XML/plain, check-only)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

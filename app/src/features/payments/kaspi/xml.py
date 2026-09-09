@@ -17,6 +17,22 @@ def _indent(elem: ET.Element, level: int = 0) -> None:
         elem.tail = indent
 
 
+def format_kaspi_sum(value: object) -> str:
+    """PHP emits integer sums without decimal part (787088 not 787088.0)."""
+    if value is None or value == "":
+        return ""
+    if isinstance(value, bool):
+        return str(int(value))
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return str(int(value)) if value.is_integer() else str(value)
+    text = str(value).strip()
+    if text.endswith(".0") and text[:-2].lstrip("-").isdigit():
+        return text[:-2]
+    return text
+
+
 def error_xml(
     txn_id: str | None,
     code: int | str,
@@ -44,7 +60,7 @@ def check_success_xml(
     ET.SubElement(root, "txn_id").text = str(txn_id)
     ET.SubElement(root, "result").text = str(result_code)
     if payment_amount is not None:
-        ET.SubElement(root, "sum").text = str(payment_amount)
+        ET.SubElement(root, "sum").text = format_kaspi_sum(payment_amount)
     ET.SubElement(root, "bin").text = company_bin
     fields_el = ET.SubElement(root, "fields")
     for tag, name, value in fields:
@@ -67,7 +83,7 @@ def pay_success_xml(
     root = ET.Element("response")
     ET.SubElement(root, "txn_id").text = str(txn_id)
     ET.SubElement(root, "prv_txn").text = str(prv_txn)
-    ET.SubElement(root, "sum").text = str(sum_value)
+    ET.SubElement(root, "sum").text = format_kaspi_sum(sum_value)
     ET.SubElement(root, "result").text = str(result_code)
     ET.SubElement(root, "bin").text = company_bin
     ET.SubElement(root, "comment").text = "OK"

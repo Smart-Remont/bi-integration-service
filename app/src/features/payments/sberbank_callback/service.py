@@ -7,13 +7,27 @@ from ..sberbank_client import SberbankClient
 from ..shared_repo import PaymentsRepository
 
 
+def _payment_id(value: object) -> int | None:
+    """Query params are strings; SP expects integer payment id."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    text = str(value).strip()
+    if text.isdigit():
+        return int(text)
+    return None
+
+
 class SberbankCallbackService(BaseService):
     def __init__(self, repository: PaymentsRepository, sber: SberbankClient) -> None:
         self.repository = repository
         self.sber = sber
 
     async def handle(self, params: dict[str, Any]) -> str:
-        order_number = params.get("orderNumber")
+        order_number = _payment_id(params.get("orderNumber"))
         if order_number is None:
             return "0"
 

@@ -19,9 +19,7 @@ class CloudPaymentsService(BaseService):
         self.repository = repository
 
     async def handle(self, mode: str, request: Request) -> JSONResponse:
-        payload = await self._parse_body(request)
-        if payload is None:
-            return JSONResponse({"code": 13})
+        payload = await self._parse_body(request) or {}
 
         client_request_id_hash = self._extract_request_hash(payload)
         client_request_payment_id_hash = str(payload.get("InvoiceId") or "")
@@ -51,8 +49,10 @@ class CloudPaymentsService(BaseService):
         if mode == "check":
             return JSONResponse({"code": code})
 
-        if mode == "pay":
-            if code:
+        if mode in ("pay", "fail"):
+            if code is None:
+                return JSONResponse({"code": 13})
+            if mode == "pay":
                 row = await self.repository.payment_client_request_get(
                     client_request_payment_id_hash,
                     client_request_id_hash,
@@ -63,13 +63,7 @@ class CloudPaymentsService(BaseService):
                         amount=payment_amount,
                         payment_amount=row.get("payment_amount"),
                     )
-                return JSONResponse({"code": code})
-            return JSONResponse({"code": 13})
-
-        if mode == "fail":
-            if code:
-                return JSONResponse({"code": code})
-            return JSONResponse({"code": 13})
+            return JSONResponse({"code": code})
 
         return JSONResponse({"code": 13})
 
@@ -77,7 +71,7 @@ class CloudPaymentsService(BaseService):
     async def _parse_body(request: Request) -> dict[str, Any] | None:
         raw = await request.body()
         if not raw:
-            return None
+            return {}
         text = unescape(raw.decode(errors="replace"))
         flat = {k: v[0] if len(v) == 1 else v for k, v in parse_qs(text, keep_blank_values=True).items()}
         return flat
