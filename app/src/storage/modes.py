@@ -45,6 +45,29 @@ class FileStoreMode(StrEnum):
     CLIENT_REQUEST_DOC = "CLIENT_REQUEST_DOC"
     LAYER = "LAYER"
     DESIGN_ROOM = "DESIGN_ROOM"
+    # myspace-only: office CMS (`/landing/*`) cutover, no legacy PHP counterpart.
+    CMS_BANNER = "CMS_BANNER"
+    CMS_BANNER_MOBILE = "CMS_BANNER_MOBILE"
+    CMS_WHY_WE_ICON = "CMS_WHY_WE_ICON"
+    CMS_BRIEF = "CMS_BRIEF"
+    CMS_CONTACT_INFO_ICON = "CMS_CONTACT_INFO_ICON"
+    CMS_ABOUT_IMG = "CMS_ABOUT_IMG"
+    CMS_PARTNER_IMG = "CMS_PARTNER_IMG"
+    CMS_REMONT_DETAILS_PHOTO = "CMS_REMONT_DETAILS_PHOTO"
+    CMS_CONSTRUCTOR_REMONT_PHOTO = "CMS_CONSTRUCTOR_REMONT_PHOTO"
+    CMS_REVIEW_AVATAR = "CMS_REVIEW_AVATAR"
+    CMS_TEAM_PHOTO = "CMS_TEAM_PHOTO"
+    CMS_BEST_REMONT_RESIDENT_PHOTO = "CMS_BEST_REMONT_RESIDENT_PHOTO"
+    CMS_PRESET_MEDIA = "CMS_PRESET_MEDIA"
+    CMS_PRESET_RESIDENT_MEDIA = "CMS_PRESET_RESIDENT_MEDIA"
+    CMS_PRESET_INFO_PHOTO = "CMS_PRESET_INFO_PHOTO"
+    CMS_PRESET_INFO_PHOTO_MINI = "CMS_PRESET_INFO_PHOTO_MINI"
+    CMS_DOCUMENT = "CMS_DOCUMENT"
+    CMS_PRESET_KIT_INFO_PRESENTATION = "CMS_PRESET_KIT_INFO_PRESENTATION"
+    CMS_PRESET_KIT_INFO_IMG = "CMS_PRESET_KIT_INFO_IMG"
+    CMS_PRESET_KIT_INFO_IMG_MINI = "CMS_PRESET_KIT_INFO_IMG_MINI"
+    CMS_SHOW_ROOM_PHOTO = "CMS_SHOW_ROOM_PHOTO"
+    CMS_SHOW_ROOM_PHOTO_MINI = "CMS_SHOW_ROOM_PHOTO_MINI"
 
 
 FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
@@ -83,6 +106,28 @@ FILE_STORE_MODE_DESCRIPTIONS: dict[FileStoreMode, str] = {
     FileStoreMode.CLIENT_REQUEST_DOC: "Документ заявки (дефекты)",
     FileStoreMode.LAYER: "Слой пресета (constructor)",
     FileStoreMode.DESIGN_ROOM: "Базовое фото комнаты (design_room)",
+    FileStoreMode.CMS_BANNER: "Баннер CMS (десктоп)",
+    FileStoreMode.CMS_BANNER_MOBILE: "Баннер CMS (мобилка)",
+    FileStoreMode.CMS_WHY_WE_ICON: "Иконка блока «Почему мы» (CMS)",
+    FileStoreMode.CMS_BRIEF: "Файл брифа (CMS)",
+    FileStoreMode.CMS_CONTACT_INFO_ICON: "Иконка контактной информации footer (CMS)",
+    FileStoreMode.CMS_ABOUT_IMG: "Картинка блока «О компании» (CMS)",
+    FileStoreMode.CMS_PARTNER_IMG: "Картинка блока «Партнёры» (CMS)",
+    FileStoreMode.CMS_REMONT_DETAILS_PHOTO: "Фото галереи «Деталей ремонта» (CMS)",
+    FileStoreMode.CMS_CONSTRUCTOR_REMONT_PHOTO: "Фото блока «Конструктор ремонта» (CMS)",
+    FileStoreMode.CMS_REVIEW_AVATAR: "Аватар отзыва (CMS)",
+    FileStoreMode.CMS_TEAM_PHOTO: "Фото сотрудника команды (CMS)",
+    FileStoreMode.CMS_BEST_REMONT_RESIDENT_PHOTO: "Фото «Лучшие резиденты» (CMS)",
+    FileStoreMode.CMS_PRESET_MEDIA: "Медиа пресета — витрина (CMS)",
+    FileStoreMode.CMS_PRESET_RESIDENT_MEDIA: "Медиа резидента пресета — витрина (CMS)",
+    FileStoreMode.CMS_PRESET_INFO_PHOTO: "Фото инфо о пресете (оригинал, CMS)",
+    FileStoreMode.CMS_PRESET_INFO_PHOTO_MINI: "Фото инфо о пресете (мини, CMS)",
+    FileStoreMode.CMS_DOCUMENT: "Документ конструктора (CMS)",
+    FileStoreMode.CMS_PRESET_KIT_INFO_PRESENTATION: "Презентация набора пресета (CMS)",
+    FileStoreMode.CMS_PRESET_KIT_INFO_IMG: "Фото набора пресета (оригинал, CMS)",
+    FileStoreMode.CMS_PRESET_KIT_INFO_IMG_MINI: "Фото набора пресета (мини, CMS)",
+    FileStoreMode.CMS_SHOW_ROOM_PHOTO: "Фото шоурума (оригинал, CMS)",
+    FileStoreMode.CMS_SHOW_ROOM_PHOTO_MINI: "Фото шоурума (мини, CMS)",
 }
 
 # Same folders/prefixes as KanbanController::srfileUploadAction.
@@ -123,6 +168,28 @@ MODE_PATH_TEMPLATES: dict[FileStoreMode, str] = {
     FileStoreMode.CLIENT_REQUEST_DOC: "/documents/{date}/client_request_docs/client_request_doc_{n}_{uniq}.{ext}",
     FileStoreMode.LAYER: "/documents/{date}/layer/layer_{uniq}.{ext}",
     FileStoreMode.DESIGN_ROOM: "/documents/{date}/design_room/design_room_{uniq}.{ext}",
+    FileStoreMode.CMS_BANNER: "/documents/{date}/cms_banner/banner_{uniq}.{ext}",
+    FileStoreMode.CMS_BANNER_MOBILE: "/documents/{date}/cms_banner/mobile/banner_mobile_{uniq}.{ext}",
+    FileStoreMode.CMS_WHY_WE_ICON: "/documents/{date}/cms_why_we/icon_{uniq}.{ext}",
+    FileStoreMode.CMS_BRIEF: "/documents/{date}/cms_brief/brief_{uniq}.{ext}",
+    FileStoreMode.CMS_CONTACT_INFO_ICON: "/documents/{date}/cms_contact_info/icon_{uniq}.{ext}",
+    FileStoreMode.CMS_ABOUT_IMG: "/documents/{date}/cms_about/img_{uniq}.{ext}",
+    FileStoreMode.CMS_PARTNER_IMG: "/documents/{date}/cms_partner/img_{uniq}.{ext}",
+    FileStoreMode.CMS_REMONT_DETAILS_PHOTO: "/documents/{date}/cms_remont_details/photo_{uniq}.{ext}",
+    FileStoreMode.CMS_CONSTRUCTOR_REMONT_PHOTO: "/documents/{date}/cms_constructor_remont/photo_{uniq}.{ext}",
+    FileStoreMode.CMS_REVIEW_AVATAR: "/documents/{date}/cms_reviews/avatar_{uniq}.{ext}",
+    FileStoreMode.CMS_TEAM_PHOTO: "/documents/{date}/cms_team/photo_{uniq}.{ext}",
+    FileStoreMode.CMS_BEST_REMONT_RESIDENT_PHOTO: "/documents/{date}/cms_best_remont_resident/photo_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_MEDIA: "/documents/{date}/cms_preset/media_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_RESIDENT_MEDIA: "/documents/{date}/cms_preset_resident/media_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_INFO_PHOTO: "/documents/{date}/cms_preset_info/photo_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_INFO_PHOTO_MINI: "/documents/{date}/cms_preset_info/mini/photo_mini_{uniq}.{ext}",
+    FileStoreMode.CMS_DOCUMENT: "/documents/{date}/cms_document/doc_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_KIT_INFO_PRESENTATION: "/documents/{date}/cms_preset_kit_info/presentation_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_KIT_INFO_IMG: "/documents/{date}/cms_preset_kit_info/img_{uniq}.{ext}",
+    FileStoreMode.CMS_PRESET_KIT_INFO_IMG_MINI: "/documents/{date}/cms_preset_kit_info/mini/img_mini_{uniq}.{ext}",
+    FileStoreMode.CMS_SHOW_ROOM_PHOTO: "/documents/{date}/cms_show_room/photo_{uniq}.{ext}",
+    FileStoreMode.CMS_SHOW_ROOM_PHOTO_MINI: "/documents/{date}/cms_show_room/mini/photo_mini_{uniq}.{ext}",
 }
 
 
